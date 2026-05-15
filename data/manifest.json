@@ -1,0 +1,23 @@
+{
+  "format": "chat-jsonl",
+  "cron_variant": "unix-5-fields-or-INVALID",
+  "total_examples": 252,
+  "train_examples": 226,
+  "valid_examples": 26,
+  "model_for_synthetic_generation": "google/gemini-3.1-flash-lite",
+  "sources": {
+    "template": 135,
+    "llm": 117
+  },
+  "families": [
+    "daily_at",
+    "every_n_minutes",
+    "weekdays_at",
+    "monthly_on_day_at",
+    "weekly_on_day_at",
+    "invalid"
+  ],
+  "special_outputs": [
+    "INVALID"
+  ]
+}

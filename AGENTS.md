@@ -13,13 +13,14 @@ The model must produce exactly one of two outputs:
 | Metric | Value |
 |---|---|
 | Format | chatml (JSONL with `messages` array) |
-| Train examples | ~1150 |
-| Valid examples | ~130 |
+| Train examples | ~1250 (80%) |
+| Valid examples | ~150 (10%) |
+| Test examples | ~150 (10%) |
 | Unique cron targets | ~330 |
 | INVALID ratio | ~7% |
 | Template examples | ~1060 |
 | LLM-augmented | ~220 |
-| Cron families | 17 |
+| Cron families | 18 |
 | Generation model | Google Gemini Flash Lite via OpenRouter |
 
 ## Supported cron patterns
@@ -293,11 +294,62 @@ The dataset is exported as JSONL in chatml format:
 | LoRA Rank | `16` |
 | LoRA Alpha | `32` |
 
+## Environment & install
+
+This project uses **uv** as its package manager. No pip, no poetry — just uv.
+
+```bash
+# Sync all dependencies (generate + train + evaluate):
+uv sync
+
+# Sync only what you need:
+uv sync --group generate
+uv sync --group train
+uv sync --group evaluate
+```
+
 ## Regenerate
 
 ```bash
-deno run -A --env-file=.env ./scripts/generate.ts
+# Generate dataset (templates only):
+uv run cron-generate
+
+# With LLM augmentation:
+export OPENROUTER_API_KEY=sk-or-v1-...
+uv run cron-generate
+
+# Push to HuggingFace Hub:
+export HF_TOKEN=hf_...
+uv run cron-generate --push --repo-id your-username/cron-dataset
 ```
+
+## Train
+
+```bash
+# Train the model:
+uv run cron-train
+
+# With custom base model:
+uv run cron-train --base-model unsloth/Qwen2.5-0.5B
+
+# Push trained model to HF Hub:
+uv run cron-train --push --hub-repo-id your-username/cron-model
+```
+
+## Evaluate
+
+```bash
+# Evaluate on the held-out test set:
+uv run cron-evaluate
+
+# With custom paths:
+uv run cron-evaluate --checkpoint output/cron-model/final --data-dir data
+
+# Save results to JSON:
+uv run cron-evaluate --save
+```
+
+The test set is **never used during training** — it's held out for unbiased final evaluation. `train.py` only loads `train.jsonl` and `valid.jsonl`.
 
 ## Dataset strategy
 
@@ -318,3 +370,12 @@ deno run -A --env-file=.env ./scripts/generate.ts
 - Month names ("January", "March") and prepositions ("in January", "every January") accepted
 - Time-of-day phrases: "every morning", "every afternoon", "every evening", "every night"
 - Standard cron `@`-aliases: `@daily`, `@hourly`, `@weekly`, `@monthly`, `@yearly`, `@midnight`
+
+## Data split strategy
+
+The dataset is split **80/10/10** (train/valid/test) via `split_dataset()` in `utils.py`.
+- **train.jsonl** — used for model fine-tuning
+- **valid.jsonl** — used for early stopping and hyperparameter selection
+- **test.jsonl** — held out; only used by `evaluate.py` for final metrics
+
+The test set will eventually be split **by seed** (grouping by `target`) to prevent paraphrases of the same template from leaking across splits (see TODO #2).

@@ -1,6 +1,10 @@
-unsloth>=2024.12
-transformers>=4.46
+# Core dependencies for dataset generation
+huggingface_hub>=0.26
 datasets>=3.0
-accelerate>=1.0
-bitsandbytes>=0.44
-trl>=0.12
+
+# For training (uncomment if needed)
+# unsloth>=2024.12
+# transformers>=4.46
+# accelerate>=1.0
+# bitsandbytes>=0.44
+# trl>=0.12

@@ -1,0 +1,88 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "cron-finetuning"
+version = "0.1.0"
+description = "Dataset generation and fine-tuning for cron expression models"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+authors = [
+    { name = "Leo" },
+]
+keywords = ["cron", "nlp", "fine-tuning", "dataset", "machine-learning"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+dependencies = [
+    "huggingface-hub>=0.26",
+    "datasets>=3.0",
+    "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+generate = [
+    "huggingface-hub>=0.26",
+    "datasets>=3.0",
+]
+train = [
+    "unsloth>=2024.12",
+    "transformers>=4.46",
+    "datasets>=3.0",
+    "accelerate>=1.0",
+    "bitsandbytes>=0.44",
+    "trl>=0.12",
+]
+inference = [
+    "unsloth>=2024.12",
+    "transformers>=4.46",
+    "accelerate>=1.0",
+    "bitsandbytes>=0.44",
+]
+evaluate = [
+    "unsloth>=2024.12",
+    "transformers>=4.46",
+    "accelerate>=1.0",
+    "bitsandbytes>=0.44",
+    "datasets>=3.0",
+]
+all = [
+    "huggingface-hub>=0.26",
+    "datasets>=3.0",
+    "unsloth>=2024.12",
+    "transformers>=4.46",
+    "accelerate>=1.0",
+    "bitsandbytes>=0.44",
+    "trl>=0.12",
+]
+
+[project.scripts]
+cron-generate = "cron_finetuning.generate:main"
+cron-train = "cron_finetuning.train:main"
+cron-inference = "cron_finetuning.inference:main"
+cron-evaluate = "cron_finetuning.evaluate:main"
+
+[project.urls]
+Homepage = "https://github.com/user/cron-finetuning"
+Repository = "https://github.com/user/cron-finetuning"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/cron_finetuning"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "src/cron_finetuning/**/*.py",
+    "README.md",
+    "pyproject.toml",
+]

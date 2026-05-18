@@ -1,1 +1,29 @@
+# Environment
 .env
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.egg
+.venv/
+venv/
+
+# Generated data
+data/train.jsonl
+data/valid.jsonl
+data/manifest.json
+
+# Model outputs
+output/
+
+# IDE
+.zed/
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

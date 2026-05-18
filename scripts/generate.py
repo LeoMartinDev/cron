@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Thin wrapper: fine-tune the cron model. Run from project root."""
+"""Thin wrapper: generate the cron dataset. Run from project root."""
 
 import sys
 from pathlib import Path
@@ -7,7 +7,7 @@ from pathlib import Path
 # Ensure src/ is on the path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from cron_finetuning.train import main
+from cron_finetuning.generate import main
 
 if __name__ == "__main__":
     main()

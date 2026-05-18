@@ -1,33 +1,34 @@
 {
   "format": "chatml",
   "cron_variant": "unix-5-fields-or-INVALID",
-  "total_examples": 1567,
-  "train_examples": 1410,
-  "valid_examples": 157,
+  "total_examples": 1562,
+  "train_examples": 1249,
+  "valid_examples": 156,
+  "test_examples": 157,
   "model_for_synthetic_generation": "google/gemini-3.1-flash-lite",
   "sources": {
     "template": 1387,
-    "llm": 180
+    "llm": 175
   },
   "families": [
-    "daily_at",
-    "every_n_minutes",
-    "weekdays_at",
-    "monthly_on_day_at",
-    "weekly_on_day_at",
-    "hour_range_at",
-    "multi_weekday_at",
-    "midnight_noon_at",
-    "hourly_at_minute",
-    "twice_daily",
-    "weekend_at",
-    "except_weekday_at",
-    "every_n_hours",
-    "every_n_days",
     "cron_aliases",
+    "daily_at",
+    "every_n_days",
+    "every_n_hours",
+    "every_n_minutes",
+    "except_weekday_at",
+    "hour_range_at",
+    "hourly_at_minute",
+    "invalid",
+    "midnight_noon_at",
     "month_specific",
+    "monthly_on_day_at",
+    "multi_weekday_at",
     "partial_week_range",
-    "invalid"
+    "twice_daily",
+    "weekdays_at",
+    "weekend_at",
+    "weekly_on_day_at"
   ],
   "special_outputs": [
     "INVALID"

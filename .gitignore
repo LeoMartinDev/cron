@@ -11,13 +11,19 @@ build/
 .venv/
 venv/
 
-# Generated data
-data/train.jsonl
-data/valid.jsonl
+# Ruff cache
+.ruff_cache/
+
+# Generated data (all from `uv run cron-generate`)
+data/*.jsonl
 data/manifest.json
 
 # Model outputs
 output/
+
+# Unsloth compiled cache (auto-generated, machine-specific)
+unsloth_compiled_cache/
+_unsloth_sentencepiece_temp/
 
 # IDE
 .zed/

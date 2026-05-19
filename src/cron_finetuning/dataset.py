@@ -113,9 +113,7 @@ def push_dataset_to_hub(
 
     # Create or get the repo
     try:
-        create_repo(
-            repo_id, token=token, private=private, repo_type="dataset", exist_ok=True
-        )
+        create_repo(repo_id, token=token, private=private, repo_type="dataset", exist_ok=True)
         print(f"Using dataset repository: {repo_id}")
     except Exception as e:
         raise RuntimeError(f"Failed to create/access repo {repo_id}: {e}") from e
@@ -173,9 +171,7 @@ def push_model_to_hub(
 
     # Create or get the repo
     try:
-        create_repo(
-            repo_id, token=token, private=private, repo_type="model", exist_ok=True
-        )
+        create_repo(repo_id, token=token, private=private, repo_type="model", exist_ok=True)
         print(f"Using model repository: {repo_id}")
     except Exception as e:
         raise RuntimeError(f"Failed to create/access repo {repo_id}: {e}") from e

@@ -72,32 +72,20 @@ def daily_at_examples() -> list[dict[str, Any]]:
 
         out.append(_ex("daily_at", user=f"Every day at {h}:{pad2(m)}", target=target))
         out.append(_ex("daily_at", user=f"Daily at {h}:{pad2(m)}", target=target))
-        out.append(
-            _ex("daily_at", user=f"Run every day at {h}:{pad2(m)}", target=target)
-        )
+        out.append(_ex("daily_at", user=f"Run every day at {h}:{pad2(m)}", target=target))
         out.append(_ex("daily_at", user=f"Every day at {to12h(h, m)}", target=target))
-        out.append(
-            _ex("daily_at", user=f"Every day at {to12h_compact(h, m)}", target=target)
-        )
+        out.append(_ex("daily_at", user=f"Every day at {to12h_compact(h, m)}", target=target))
 
         # Natural time-of-day phrases for round hours
         if m == 0:
             if 6 <= h <= 11:
                 out.append(_ex("daily_at", user=f"Every morning at {h}", target=target))
             if 12 <= h <= 17:
-                out.append(
-                    _ex(
-                        "daily_at", user=f"Every afternoon at {to12h(h)}", target=target
-                    )
-                )
+                out.append(_ex("daily_at", user=f"Every afternoon at {to12h(h)}", target=target))
             if 18 <= h <= 21:
-                out.append(
-                    _ex("daily_at", user=f"Every evening at {to12h(h)}", target=target)
-                )
+                out.append(_ex("daily_at", user=f"Every evening at {to12h(h)}", target=target))
             if h >= 22 or h <= 4:
-                out.append(
-                    _ex("daily_at", user=f"Every night at {to12h(h)}", target=target)
-                )
+                out.append(_ex("daily_at", user=f"Every night at {to12h(h)}", target=target))
 
         # Terse / lazy phrasings
         if m == 0:
@@ -122,9 +110,7 @@ def every_n_minutes_examples() -> list[dict[str, Any]]:
         target = f"*/{n} * * * *"
         out.append(_ex("every_n_minutes", user=f"Every {n} minutes", target=target))
         out.append(_ex("every_n_minutes", user=f"Run every {n} minutes", target=target))
-        out.append(
-            _ex("every_n_minutes", user=f"Once every {n} minutes", target=target)
-        )
+        out.append(_ex("every_n_minutes", user=f"Once every {n} minutes", target=target))
         out.append(_ex("every_n_minutes", user=f"Every {n}m", target=target))
         out.append(_ex("every_n_minutes", user=f"Every {n} min", target=target))
     return out
@@ -152,18 +138,10 @@ def weekdays_at_examples() -> list[dict[str, Any]]:
         h, m = slot["hour"], slot["minute"]
         target = f"{m} {h} * * 1-5"
 
-        out.append(
-            _ex("weekdays_at", user=f"Every weekday at {h}:{pad2(m)}", target=target)
-        )
-        out.append(
-            _ex("weekdays_at", user=f"On weekdays at {h}:{pad2(m)}", target=target)
-        )
-        out.append(
-            _ex("weekdays_at", user=f"Monday to Friday at {h}:{pad2(m)}", target=target)
-        )
-        out.append(
-            _ex("weekdays_at", user=f"Every weekday at {to12h(h, m)}", target=target)
-        )
+        out.append(_ex("weekdays_at", user=f"Every weekday at {h}:{pad2(m)}", target=target))
+        out.append(_ex("weekdays_at", user=f"On weekdays at {h}:{pad2(m)}", target=target))
+        out.append(_ex("weekdays_at", user=f"Monday to Friday at {h}:{pad2(m)}", target=target))
+        out.append(_ex("weekdays_at", user=f"Every weekday at {to12h(h, m)}", target=target))
         out.append(
             _ex(
                 "weekdays_at",
@@ -171,12 +149,8 @@ def weekdays_at_examples() -> list[dict[str, Any]]:
                 target=target,
             )
         )
-        out.append(
-            _ex("weekdays_at", user=f"Weekdays {to12h_compact(h, m)}", target=target)
-        )
-        out.append(
-            _ex("weekdays_at", user=f"{to12h_compact(h, m)} weekdays", target=target)
-        )
+        out.append(_ex("weekdays_at", user=f"Weekdays {to12h_compact(h, m)}", target=target))
+        out.append(_ex("weekdays_at", user=f"{to12h_compact(h, m)} weekdays", target=target))
 
     return out
 
@@ -275,9 +249,7 @@ def weekly_on_day_at_examples() -> list[dict[str, Any]]:
                     target=target,
                 )
             )
-            out.append(
-                _ex("weekly_on_day_at", user=f"{short} at {h}:{pad2(m)}", target=target)
-            )
+            out.append(_ex("weekly_on_day_at", user=f"{short} at {h}:{pad2(m)}", target=target))
             out.append(
                 _ex(
                     "weekly_on_day_at",
@@ -441,9 +413,7 @@ def hourly_at_minute_examples() -> list[dict[str, Any]]:
     for minute in minutes:
         target = f"{minute} * * * *"
 
-        out.append(
-            _ex("hourly_at_minute", user=f"At {minute} past every hour", target=target)
-        )
+        out.append(_ex("hourly_at_minute", user=f"At {minute} past every hour", target=target))
         out.append(
             _ex(
                 "hourly_at_minute",
@@ -460,25 +430,13 @@ def hourly_at_minute_examples() -> list[dict[str, Any]]:
         )
 
         if minute == 0:
-            out.append(
-                _ex(
-                    "hourly_at_minute", user="At the start of every hour", target=target
-                )
-            )
+            out.append(_ex("hourly_at_minute", user="At the start of every hour", target=target))
         elif minute == 15:
-            out.append(
-                _ex(
-                    "hourly_at_minute", user="At quarter past every hour", target=target
-                )
-            )
+            out.append(_ex("hourly_at_minute", user="At quarter past every hour", target=target))
         elif minute == 30:
-            out.append(
-                _ex("hourly_at_minute", user="At half past every hour", target=target)
-            )
+            out.append(_ex("hourly_at_minute", user="At half past every hour", target=target))
         elif minute == 45:
-            out.append(
-                _ex("hourly_at_minute", user="At quarter to every hour", target=target)
-            )
+            out.append(_ex("hourly_at_minute", user="At quarter to every hour", target=target))
 
     return out
 
@@ -549,12 +507,8 @@ def weekend_at_examples() -> list[dict[str, Any]]:
         h, m = slot["hour"], slot["minute"]
         target = f"{m} {h} * * 6,0"
 
-        out.append(
-            _ex("weekend_at", user=f"Every weekend at {h}:{pad2(m)}", target=target)
-        )
-        out.append(
-            _ex("weekend_at", user=f"On weekends at {h}:{pad2(m)}", target=target)
-        )
+        out.append(_ex("weekend_at", user=f"Every weekend at {h}:{pad2(m)}", target=target))
+        out.append(_ex("weekend_at", user=f"On weekends at {h}:{pad2(m)}", target=target))
         out.append(
             _ex(
                 "weekend_at",
@@ -569,12 +523,8 @@ def weekend_at_examples() -> list[dict[str, Any]]:
                 target=target,
             )
         )
-        out.append(
-            _ex("weekend_at", user=f"Weekends {to12h_compact(h, m)}", target=target)
-        )
-        out.append(
-            _ex("weekend_at", user=f"Sat Sun {to12h_compact(h, m)}", target=target)
-        )
+        out.append(_ex("weekend_at", user=f"Weekends {to12h_compact(h, m)}", target=target))
+        out.append(_ex("weekend_at", user=f"Sat Sun {to12h_compact(h, m)}", target=target))
 
     return out
 
@@ -741,9 +691,7 @@ def cron_aliases_examples() -> list[dict[str, Any]]:
     out.append(_ex("cron_aliases", user="monthly", target="0 0 1 * *"))
     out.append(_ex("cron_aliases", user="yearly", target="0 0 1 1 *"))
     out.append(_ex("cron_aliases", user="annually", target="0 0 1 1 *"))
-    out.append(
-        _ex("cron_aliases", user="every minute of every day", target="* * * * *")
-    )
+    out.append(_ex("cron_aliases", user="every minute of every day", target="* * * * *"))
 
     return out
 
@@ -793,9 +741,7 @@ def month_specific_examples() -> list[dict[str, Any]]:
                     target=target,
                 )
             )
-            out.append(
-                _ex("month_specific", user=f"In {name} at {h}:{pad2(m)}", target=target)
-            )
+            out.append(_ex("month_specific", user=f"In {name} at {h}:{pad2(m)}", target=target))
 
     # "On January 15th at 9:00" → 0 9 15 1 *
     for mo in months[:6]:

@@ -206,9 +206,7 @@ def maybe_generate_synthetic_data(base: list[dict[str, Any]]) -> list[dict[str, 
     ][:40]
 
     print(f"Generating paraphrases from {len(valid_seeds)} seeds...")
-    valid_synthetic = generate_valid_paraphrases(
-        api_key, model, valid_seeds, count_per_seed=4
-    )
+    valid_synthetic = generate_valid_paraphrases(api_key, model, valid_seeds, count_per_seed=4)
     print(f"  Got {len(valid_synthetic)} valid paraphrases")
 
     print("Generating off-topic INVALID prompts...")

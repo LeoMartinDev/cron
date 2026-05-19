@@ -13,7 +13,6 @@ Also works with: unsloth/Qwen2.5-0.5B, unsloth/Llama-3.2-1B, unsloth/Qwen2.5-1.5
 
 from __future__ import annotations
 
-import argparse
 import json
 from pathlib import Path
 
@@ -21,8 +20,7 @@ from pathlib import Path
 # as it monkey-patches them for QLoRA + fast kernels.
 from datasets import Dataset
 from transformers import TrainingArguments
-from trl import SFTTrainer
-from unsloth import FastLanguageModel, is_bfloat16_supported
+from unsloth import FastLanguageModel, UnslothTrainer, is_bfloat16_supported
 from unsloth.chat_templates import get_chat_template
 
 # ============================================================================
@@ -96,7 +94,7 @@ def train(
     base_model: str | None = None,
     resume_from_checkpoint: str | None = None,
     push_to_hub: bool = False,
-    hub_repo_id: str | None = None,
+    repo_id: str | None = None,
 ) -> None:
     """Run the full training pipeline.
 
@@ -108,7 +106,7 @@ def train(
         base_model: HuggingFace base model ID.
         resume_from_checkpoint: Path to a checkpoint to resume from.
         push_to_hub: Whether to push the final model to HuggingFace Hub.
-        hub_repo_id: HF Hub model repo ID (required if push_to_hub is True).
+        repo_id: HF Hub model repo ID (required if push_to_hub is True).
     """
     project_root = Path(__file__).resolve().parent.parent.parent
     train_path = Path(data_dir) / "train.jsonl"
@@ -161,7 +159,7 @@ def train(
         random_state=42,
     )
 
-    # 4. Attach chat template
+    # 4. Attach chat template & pre-tokenize
     tokenizer = get_chat_template(
         tokenizer,
         chat_template="chatml",
@@ -173,17 +171,31 @@ def train(
         },
     )
 
-    def apply_chat_template(examples):
+    # Pre-tokenize datasets here to avoid SFTTrainer's internal
+    # multiprocessing-based tokenization (broken on Python 3.13 + dill).
+    max_seq_length = CONFIG["context_length"]
+
+    def _tokenize(examples):
+        """Apply chat template and tokenize in one pass."""
         texts = []
         for messages in examples["messages"]:
             text = tokenizer.apply_chat_template(
                 messages, tokenize=False, add_generation_prompt=False
             )
             texts.append(text)
-        return {"text": texts}
+        tokenized = tokenizer(
+            texts,
+            truncation=True,
+            padding=False,
+            max_length=max_seq_length,
+        )
+        return tokenized
 
-    train_ds = train_ds.map(apply_chat_template, batched=True)
-    valid_ds = valid_ds.map(apply_chat_template, batched=True)
+    print("\nTokenizing datasets...")
+    train_ds = train_ds.map(_tokenize, batched=True, batch_size=64)
+    valid_ds = valid_ds.map(_tokenize, batched=True, batch_size=64)
+    print(f"  Train tokens max length: {max(len(ids) for ids in train_ds['input_ids'])}")
+    print(f"  Valid tokens max length: {max(len(ids) for ids in valid_ds['input_ids'])}")
 
     # 5. Training arguments
     training_args = TrainingArguments(
@@ -213,16 +225,14 @@ def train(
         run_name="cron-finetune",
     )
 
-    # 6. Trainer
-    trainer = SFTTrainer(
+    # 6. Trainer — use Unsloth's own trainer which handles the lazy-logits
+    #    output from Unsloth's patched forward pass correctly.
+    trainer = UnslothTrainer(
         model=model,
-        tokenizer=tokenizer,
+        processing_class=tokenizer,
         args=training_args,
         train_dataset=train_ds,
         eval_dataset=valid_ds,
-        dataset_text_field="text",
-        max_seq_length=CONFIG["context_length"],
-        packing=False,
     )
 
     # 7. Train
@@ -238,12 +248,12 @@ def train(
 
     # 9. Optionally push to HuggingFace Hub
     if push_to_hub:
-        if not hub_repo_id:
-            raise ValueError("hub_repo_id is required when push_to_hub=True")
+        if not repo_id:
+            raise ValueError("repo_id is required when push_to_hub=True")
 
         from .dataset import push_model_to_hub
 
-        push_model_to_hub(final_dir, hub_repo_id)
+        push_model_to_hub(final_dir, repo_id)
 
 
 # ============================================================================
@@ -251,49 +261,5 @@ def train(
 # ============================================================================
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Fine-tune cron model with Unsloth")
-    parser.add_argument(
-        "--base-model",
-        default=CONFIG["base_model"],
-        help="HuggingFace base model ID",
-    )
-    parser.add_argument(
-        "--resume-from-checkpoint",
-        default=None,
-        help="Path to a checkpoint to resume from",
-    )
-    parser.add_argument(
-        "--output-dir",
-        default=CONFIG["output_dir"],
-        help="Directory to save model outputs",
-    )
-    parser.add_argument(
-        "--data-dir",
-        default=CONFIG["data_dir"],
-        help="Directory containing train.jsonl, valid.jsonl, and test.jsonl (test is ignored during training)",
-    )
-    parser.add_argument(
-        "--push",
-        action="store_true",
-        help="Push the final model to HuggingFace Hub",
-    )
-    parser.add_argument(
-        "--hub-repo-id",
-        default=None,
-        help="HuggingFace Hub model repo ID (e.g. 'username/cron-model')",
-    )
-    args = parser.parse_args()
-
-    train(
-        data_dir=args.data_dir,
-        output_dir=args.output_dir,
-        base_model=args.base_model,
-        resume_from_checkpoint=args.resume_from_checkpoint,
-        push_to_hub=args.push,
-        hub_repo_id=args.hub_repo_id,
-    )
-
-
 if __name__ == "__main__":
-    main()
+    train()

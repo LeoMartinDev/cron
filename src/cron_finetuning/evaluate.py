@@ -10,7 +10,6 @@ Usage:
 
 from __future__ import annotations
 
-import argparse
 import json
 import sys
 from collections import defaultdict
@@ -141,9 +140,7 @@ def evaluate(
     total = len(test_examples)
 
     # Per-family stats
-    family_stats: dict[str, dict[str, int]] = defaultdict(
-        lambda: {"total": 0, "correct": 0}
-    )
+    family_stats: dict[str, dict[str, int]] = defaultdict(lambda: {"total": 0, "correct": 0})
 
     # Confusion matrix for valid/invalid
     invalid_as_invalid = 0  # True negatives (INVALID predicted as INVALID)
@@ -155,10 +152,7 @@ def evaluate(
     for i, ex in enumerate(test_examples):
         user_text = ex.get("user", "")
         # Extract target from messages if present, else from 'target' key
-        if "messages" in ex:
-            target = ex["messages"][-1]["content"]
-        else:
-            target = ex.get("target", "")
+        target = ex["messages"][-1]["content"] if "messages" in ex else ex.get("target", "")
 
         family = ex.get("family", "unknown")
 
@@ -193,17 +187,14 @@ def evaluate(
     cron_total = sum(
         1
         for ex in test_examples
-        if (ex.get("target") or ex.get("messages", [{}])[-1].get("content", ""))
-        != "INVALID"
+        if (ex.get("target") or ex.get("messages", [{}])[-1].get("content", "")) != "INVALID"
     )
     invalid_total = total - cron_total
 
     cron_correct = cron_as_cron
     cron_accuracy = 100 * cron_correct / cron_total if cron_total > 0 else 0.0
 
-    invalid_recall = (
-        100 * invalid_as_invalid / invalid_total if invalid_total > 0 else 0.0
-    )
+    invalid_recall = 100 * invalid_as_invalid / invalid_total if invalid_total > 0 else 0.0
 
     # Per-family accuracy (sorted by performance)
     family_accuracy = {
@@ -266,9 +257,7 @@ def print_results(results: dict) -> None:
     print("Per-family accuracy (sorted):")
     for fam, stats in results["family_accuracy"].items():
         bar = "█" * int(stats["accuracy"] / 5) + "░" * (20 - int(stats["accuracy"] / 5))
-        print(
-            f"  {fam:<25s} {bar} {stats['accuracy']:5.1f}% ({stats['correct']}/{stats['total']})"
-        )
+        print(f"  {fam:<25s} {bar} {stats['accuracy']:5.1f}% ({stats['correct']}/{stats['total']})")
     print("=" * 60)
 
 
@@ -280,44 +269,5 @@ def save_results(results: dict, data_dir: str | Path) -> None:
     print(f"\nResults saved to {output_path}")
 
 
-def main() -> None:
-    """CLI entry point for evaluation."""
-    parser = argparse.ArgumentParser(
-        description="Evaluate fine-tuned cron model on the held-out test set."
-    )
-    parser.add_argument(
-        "--data-dir",
-        default=DEFAULT_DATA_DIR,
-        help=f"Directory containing test.jsonl (default: {DEFAULT_DATA_DIR})",
-    )
-    parser.add_argument(
-        "--checkpoint",
-        default=DEFAULT_CHECKPOINT,
-        help=f"Path to LoRA checkpoint (default: {DEFAULT_CHECKPOINT})",
-    )
-    parser.add_argument(
-        "--base-model",
-        default=BASE_MODEL,
-        help=f"Base model ID (default: {BASE_MODEL})",
-    )
-    parser.add_argument(
-        "--save",
-        action="store_true",
-        help="Save evaluation results to data/evaluation_results.json",
-    )
-    args = parser.parse_args()
-
-    results = evaluate(
-        data_dir=args.data_dir,
-        checkpoint_path=args.checkpoint,
-        base_model=args.base_model,
-    )
-
-    print_results(results)
-
-    if args.save:
-        save_results(results, args.data_dir)
-
-
 if __name__ == "__main__":
-    main()
+    evaluate()

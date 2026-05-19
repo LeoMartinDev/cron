@@ -91,18 +91,14 @@ def is_reasonable_user_text(value: str) -> bool:
     text = normalize_user_text(value)
     if not text:
         return False
-    if len(text) < 3 or len(text) > 200:
-        return False
-    return True
+    return not (len(text) < 3 or len(text) > 200)
 
 
 def validate_example(example: dict[str, Any]) -> bool:
     """Validate a single example."""
     if not is_reasonable_user_text(example["user"]):
         return False
-    if not is_valid_target(example["target"]):
-        return False
-    return True
+    return is_valid_target(example["target"])
 
 
 def dedupe(examples: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -170,13 +166,11 @@ def is_semantically_consistent(user_text: str, target: str) -> bool:
         return True
 
     # If cron has day-of-week restriction, must NOT say daily/every day without except
-    if dow != "*":
-        if re.search(r"\b(daily|every\s+day|each\s+day|run\s+every\s+day)\b", lower):
-            return False
+    if dow != "*" and re.search(r"\b(daily|every\s+day|each\s+day|run\s+every\s+day)\b", lower):
+        return False
 
     # If cron is not the full weekday range (1-5), must NOT say weekday without except
-    if dow != "1-5" and dow != "*":
-        if re.search(r"\b(weekdays?|monday\s+to\s+friday|m-f)\b(?!\s+except)", lower):
-            return False
-
-    return True
+    return not (
+        (dow != "1-5" and dow != "*")
+        and re.search(r"\b(weekdays?|monday\s+to\s+friday|m-f)\b(?!\s+except)", lower)
+    )

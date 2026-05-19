@@ -93,7 +93,7 @@ cron-train
 cron-train --base-model unsloth/Qwen2.5-0.5B
 
 # Push trained model to HuggingFace Hub
-cron-train --push --hub-repo-id your-username/cron-model
+cron-train --push --repo-id your-username/cron-model
 ```
 
 ### 5. Run inference

@@ -11,7 +11,6 @@ Usage:
 
 from __future__ import annotations
 
-import argparse
 import sys
 from pathlib import Path
 
@@ -123,25 +122,5 @@ def run(checkpoint_path: str, user_input: str | None = None) -> None:
         print(f"Bot: {result}\n")
 
 
-def main():
-    parser = argparse.ArgumentParser(
-        description="Run inference with a fine-tuned cron model."
-    )
-    parser.add_argument(
-        "input",
-        nargs="*",
-        help="Natural-language scheduling request (omit for interactive mode)",
-    )
-    parser.add_argument(
-        "--checkpoint",
-        default=DEFAULT_CHECKPOINT,
-        help=f"Path to the LoRA checkpoint (default: {DEFAULT_CHECKPOINT})",
-    )
-    args = parser.parse_args()
-
-    user_input = " ".join(args.input) if args.input else None
-    run(checkpoint_path=args.checkpoint, user_input=user_input)
-
-
 if __name__ == "__main__":
-    main()
+    run(checkpoint_path=DEFAULT_CHECKPOINT)

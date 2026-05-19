@@ -36,7 +36,7 @@ Family = Literal[
 Source = Literal["template", "llm"]
 
 # Weekday mapping: name -> (short, cron_number)
-# NOTE: Monday–Friday only (the original dataset does not generate
+# NOTE: Monday-Friday only (the original dataset does not generate
 # weekly_on_day examples for Saturday/Sunday — those are covered by weekend_at)
 WEEKDAYS: list[dict[str, object]] = [
     {"name": "Monday", "short": "Mon", "cron": 1},

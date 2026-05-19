@@ -333,7 +333,7 @@ uv run cron-train
 uv run cron-train --base-model unsloth/Qwen2.5-0.5B
 
 # Push trained model to HF Hub:
-uv run cron-train --push --hub-repo-id your-username/cron-model
+uv run cron-train --push --repo-id your-username/cron-model
 ```
 
 ## Evaluate

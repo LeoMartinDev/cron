@@ -1,14 +1,14 @@
 {
   "format": "chatml",
   "cron_variant": "unix-5-fields-or-INVALID",
-  "total_examples": 1562,
-  "train_examples": 1249,
+  "total_examples": 1564,
+  "train_examples": 1251,
   "valid_examples": 156,
   "test_examples": 157,
   "model_for_synthetic_generation": "google/gemini-3.1-flash-lite",
   "sources": {
     "template": 1387,
-    "llm": 175
+    "llm": 177
   },
   "families": [
     "cron_aliases",

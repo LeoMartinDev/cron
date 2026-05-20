@@ -29,10 +29,13 @@ warnings.filterwarnings(
 
 # Unsloth MUST be imported before torch, transformers, trl, peft
 # as it monkey-patches them for QLoRA + fast kernels.
-from datasets import Dataset
-from trl import SFTConfig
-from unsloth import FastLanguageModel, UnslothTrainer, is_bfloat16_supported
-from unsloth.chat_templates import get_chat_template, train_on_responses_only
+# isort: off
+from unsloth import FastLanguageModel, UnslothTrainer, is_bfloat16_supported  # noqa: E402
+from unsloth.chat_templates import get_chat_template, train_on_responses_only  # noqa: E402
+
+# isort: on
+from datasets import Dataset  # noqa: E402
+from trl import SFTConfig  # noqa: E402
 
 # ============================================================================
 # Default configuration
@@ -293,7 +296,7 @@ def train(
         gguf_dir = output_dir / "final-gguf"
         print(f"\n[11/11] Saving GGUF {gguf_quant.upper()} to {gguf_dir}...")
         print("         This converts the merged model to GGUF format via llama.cpp.")
-        print("         The first conversion may take ~10–15 minutes while llama.cpp is installed.")
+        print("         The first conversion may take ~10-15 minutes while llama.cpp is installed.")
         model.save_pretrained_gguf(
             str(gguf_dir),
             tokenizer=tokenizer,

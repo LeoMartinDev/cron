@@ -26,8 +26,12 @@ warnings.filterwarnings(
     category=FutureWarning,
 )
 
-import torch
-from unsloth import FastLanguageModel
+# Unsloth MUST be imported before torch — it monkey-patches transformers/torch.
+# isort: off
+from unsloth import FastLanguageModel  # noqa: E402
+
+# isort: on
+import torch  # noqa: E402
 
 # Default paths
 BASE_MODEL = "unsloth/SmolLM2-360M-Instruct"

@@ -4,8 +4,7 @@ Evaluate a fine-tuned cron model on the held-out test set.
 
 Usage:
     python -m cron_finetuning.evaluate
-    python -m cron_finetuning.evaluate --checkpoint output/cron-model/final
-    python -m cron_finetuning.evaluate --data-dir data --checkpoint output/cron-model/final
+    python -m cron_finetuning.evaluate --save
 """
 
 from __future__ import annotations
@@ -33,10 +32,7 @@ from unsloth import FastLanguageModel  # noqa: E402
 # isort: on
 import torch  # noqa: E402
 
-# Default paths
-BASE_MODEL = "unsloth/SmolLM2-360M-Instruct"
-DEFAULT_CHECKPOINT = "output/cron-model/final"
-DEFAULT_DATA_DIR = "data"
+from .constants import BASE_MODEL, DEFAULT_CHECKPOINT, DEFAULT_DATA_DIR  # noqa: E402
 
 # System prompt (same as training)
 SYSTEM_PROMPT = (
@@ -45,11 +41,11 @@ SYSTEM_PROMPT = (
 )
 
 
-def load_model(checkpoint_path: str, base_model: str = BASE_MODEL):
+def load_model(checkpoint_path: str):
     """Load base model and apply fine-tuned LoRA adapters."""
-    print(f"Loading base model: {base_model}")
+    print(f"Loading base model: {BASE_MODEL}")
     model, tokenizer = FastLanguageModel.from_pretrained(
-        model_name=base_model,
+        model_name=BASE_MODEL,
         max_seq_length=256,
         dtype=None,
         load_in_4bit=True,
@@ -125,7 +121,6 @@ def is_valid_cron(value: str) -> bool:
 def evaluate(
     data_dir: str | Path = DEFAULT_DATA_DIR,
     checkpoint_path: str | Path = DEFAULT_CHECKPOINT,
-    base_model: str = BASE_MODEL,
 ) -> dict:
     """Run evaluation on the test set.
 
@@ -151,7 +146,7 @@ def evaluate(
     print(f"  Test examples: {len(test_examples)}")
 
     # Load model
-    model, tokenizer = load_model(str(checkpoint), base_model=base_model)
+    model, tokenizer = load_model(str(checkpoint))
 
     # Run inference on all test examples
     print(f"\nRunning evaluation on {len(test_examples)} examples...")
@@ -296,7 +291,7 @@ def print_results(results: dict) -> None:
     print("=" * 60)
 
 
-def save_results(results: dict, data_dir: str | Path) -> None:
+def save_results(results: dict, data_dir: str | Path = DEFAULT_DATA_DIR) -> None:
     """Save evaluation results to a JSON file."""
     output_path = Path(data_dir) / "evaluation_results.json"
     with open(output_path, "w", encoding="utf-8") as f:
@@ -305,4 +300,5 @@ def save_results(results: dict, data_dir: str | Path) -> None:
 
 
 if __name__ == "__main__":
-    evaluate()
+    results = evaluate()
+    print_results(results)

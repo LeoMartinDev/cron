@@ -4,7 +4,6 @@ Fine-tune a small language model for cron-expression generation using Unsloth.
 
 Usage:
     python -m cron_finetuning.train
-    python -m cron_finetuning.train --base-model unsloth/Qwen2.5-0.5B
     python -m cron_finetuning.train --resume-from-checkpoint output/cron-model/checkpoint-600
 
 Default base model: unsloth/SmolLM2-360M-Instruct (360M params)
@@ -37,12 +36,18 @@ from unsloth.chat_templates import get_chat_template, train_on_responses_only  #
 from datasets import Dataset  # noqa: E402
 from trl import SFTConfig  # noqa: E402
 
+from .constants import (  # noqa: E402
+    BASE_MODEL,
+    DEFAULT_DATA_DIR,
+    DEFAULT_OUTPUT_DIR,
+    HUB_MODEL_REPO_ID,
+)
+
 # ============================================================================
 # Default configuration
 # ============================================================================
 
 CONFIG = {
-    "base_model": "unsloth/SmolLM2-360M-Instruct",
     "dtype": None,
     "load_in_4bit": True,
     "lora_rank": 32,
@@ -71,8 +76,6 @@ CONFIG = {
     "save_steps": 200,
     "eval_steps": 200,
     "report_to": "none",
-    "data_dir": "data",
-    "output_dir": "output/cron-model",
 }
 
 
@@ -103,12 +106,8 @@ def format_chatml(examples: list[dict]) -> Dataset:
 
 
 def train(
-    data_dir: str | Path = "data",
-    output_dir: str | Path = "output/cron-model",
-    base_model: str | None = None,
     resume_from_checkpoint: str | None = None,
     push_to_hub: bool = False,
-    repo_id: str | None = None,
     *,
     export_merged: bool = True,
     export_gguf: bool = True,
@@ -117,30 +116,16 @@ def train(
     """Run the full training pipeline.
 
     Args:
-        data_dir: Directory containing train.jsonl, valid.jsonl, and test.jsonl.
-                  Only train.jsonl and valid.jsonl are used for training;
-                  test.jsonl is held out for final evaluation via evaluate.py.
-        output_dir: Directory to save model checkpoints and final model.
-        base_model: HuggingFace base model ID.
         resume_from_checkpoint: Path to a checkpoint to resume from.
         push_to_hub: Whether to push the final model to HuggingFace Hub.
-        repo_id: HF Hub model repo ID (required if push_to_hub is True).
         export_merged: Save a full 16-bit merged model (LoRA fused into base).
         export_gguf: Save a GGUF quantized model for llama.cpp.
         gguf_quant: GGUF quantization method (default: "q4_k_m").
     """
     project_root = Path(__file__).resolve().parent.parent.parent
-    train_path = Path(data_dir) / "train.jsonl"
-    valid_path = Path(data_dir) / "valid.jsonl"
-    output_dir = Path(output_dir)
-
-    if not train_path.is_absolute():
-        train_path = project_root / train_path
-        valid_path = project_root / valid_path
-        output_dir = project_root / output_dir
-
-    if base_model is None:
-        base_model = CONFIG["base_model"]
+    train_path = project_root / DEFAULT_DATA_DIR / "train.jsonl"
+    valid_path = project_root / DEFAULT_DATA_DIR / "valid.jsonl"
+    output_dir = project_root / DEFAULT_OUTPUT_DIR
 
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -148,7 +133,7 @@ def train(
     print(f"Train data   : {train_path}")
     print(f"Valid data   : {valid_path}")
     print(f"Output dir   : {output_dir}")
-    print(f"Base model   : {base_model}")
+    print(f"Base model   : {BASE_MODEL}")
 
     # 1. Load datasets
     print("\nLoading datasets...")
@@ -162,7 +147,7 @@ def train(
     # 2. Load model & tokeniser
     print("\nLoading model & tokeniser...")
     model, tokenizer = FastLanguageModel.from_pretrained(
-        model_name=base_model,
+        model_name=BASE_MODEL,
         max_seq_length=CONFIG["context_length"],
         dtype=CONFIG["dtype"],
         load_in_4bit=CONFIG["load_in_4bit"],
@@ -213,8 +198,8 @@ def train(
         return tokenized
 
     print("\nTokenizing datasets...")
-    train_ds = train_ds.map(_tokenize, batched=True, batch_size=64)
-    valid_ds = valid_ds.map(_tokenize, batched=True, batch_size=64)
+    train_ds = train_ds.map(_tokenize, batched=True, batch_size=64, remove_columns=["messages"])
+    valid_ds = valid_ds.map(_tokenize, batched=True, batch_size=64, remove_columns=["messages"])
     print(f"  Train tokens max length: {max(len(ids) for ids in train_ds['input_ids'])}")
     print(f"  Valid tokens max length: {max(len(ids) for ids in valid_ds['input_ids'])}")
 
@@ -306,8 +291,12 @@ def train(
 
     # 12. Optionally push to HuggingFace Hub
     if push_to_hub:
+        repo_id = HUB_MODEL_REPO_ID
         if not repo_id:
-            raise ValueError("repo_id is required when push_to_hub=True")
+            raise ValueError(
+                "HUB_MODEL_REPO_ID must be set in src/cron_finetuning/constants.py "
+                "when push_to_hub=True."
+            )
 
         from .dataset import push_model_to_hub
 

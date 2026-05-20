@@ -6,7 +6,6 @@ Usage:
     python -m cron_finetuning.inference "Every day at 6:30"
     python -m cron_finetuning.inference "What is the capital of France?"
     python -m cron_finetuning.inference  # interactive mode
-    python -m cron_finetuning.inference --checkpoint path/to/model
 """
 
 from __future__ import annotations
@@ -32,9 +31,7 @@ from unsloth import FastLanguageModel  # noqa: E402
 # isort: on
 import torch  # noqa: E402
 
-# Default paths
-DEFAULT_CHECKPOINT = "output/cron-model/final"
-BASE_MODEL = "unsloth/SmolLM2-360M-Instruct"
+from .constants import BASE_MODEL, DEFAULT_CHECKPOINT  # noqa: E402
 
 
 def load_model(checkpoint_path: str):
@@ -96,21 +93,20 @@ def predict(model, tokenizer, user_input: str) -> str:
     return response
 
 
-def run(checkpoint_path: str, user_input: str | None = None) -> None:
+def run(user_input: str | None = None) -> None:
     """Run inference.
 
     Args:
-        checkpoint_path: Path to the fine-tuned LoRA checkpoint.
         user_input: If provided, run one-shot inference. Otherwise, interactive mode.
     """
     project_root = Path(__file__).resolve().parent.parent.parent
-    checkpoint = Path(checkpoint_path)
+    checkpoint = Path(DEFAULT_CHECKPOINT)
     if not checkpoint.is_absolute():
         checkpoint = project_root / checkpoint
 
     if not checkpoint.exists():
         print(f"Checkpoint not found at {checkpoint}")
-        print("Run train.py first, or specify a checkpoint path with --checkpoint.")
+        print("Run train.py first, or update DEFAULT_CHECKPOINT in constants.py.")
         sys.exit(1)
 
     model, tokenizer = load_model(str(checkpoint))
@@ -141,4 +137,4 @@ def run(checkpoint_path: str, user_input: str | None = None) -> None:
 
 
 if __name__ == "__main__":
-    run(checkpoint_path=DEFAULT_CHECKPOINT)
+    run()

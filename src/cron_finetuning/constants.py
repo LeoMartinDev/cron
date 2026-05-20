@@ -52,7 +52,14 @@ OPENROUTER_URL: str = "https://openrouter.ai/api/v1/chat/completions"
 # Default model for LLM augmentation
 DEFAULT_MODEL: str = "google/gemini-3.1-flash-litei"
 
-# Default HuggingFace Hub repositories (set these to your own to avoid
-# passing --repo-id on every command)
+# Default HuggingFace Hub repositories
 HUB_MODEL_REPO_ID: str | None = "leom21/cron"  # e.g. "username/cron-model"
 HUB_DATASET_REPO_ID: str | None = "leom21/cron"  # e.g. "username/cron-dataset"
+
+# Default base model for fine-tuning and inference
+BASE_MODEL: str = "unsloth/SmolLM2-360M-Instruct"
+
+# Default paths
+DEFAULT_DATA_DIR: str = "data"
+DEFAULT_OUTPUT_DIR: str = "output/cron-model"
+DEFAULT_CHECKPOINT: str = "output/cron-model/final"

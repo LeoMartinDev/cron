@@ -10,6 +10,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from .constants import HUB_DATASET_REPO_ID
 from .dataset import write_jsonl, write_manifest
 from .families import build_base_dataset
 from .llm import maybe_generate_synthetic_data
@@ -19,14 +20,12 @@ from .utils import dedupe, split_dataset
 def generate(
     output_dir: str | Path = "data",
     push_to_hub: bool = False,
-    repo_id: str | None = None,
 ) -> None:
     """Generate the cron dataset and optionally push to HuggingFace Hub.
 
     Args:
         output_dir: Directory to write train.jsonl, valid.jsonl, test.jsonl, and manifest.json.
         push_to_hub: If True, also push to HuggingFace Hub.
-        repo_id: HF Hub repo ID (required if push_to_hub is True).
     """
     print("Building base dataset from templates...")
     base = build_base_dataset()
@@ -60,12 +59,14 @@ def generate(
 
     # Optionally push to HuggingFace Hub
     if push_to_hub:
-        if not repo_id:
-            raise ValueError("repo_id is required when push_to_hub=True")
+        if not HUB_DATASET_REPO_ID:
+            raise ValueError(
+                "HUB_DATASET_REPO_ID must be set in constants.py when push_to_hub=True"
+            )
 
         from .dataset import push_dataset_to_hub
 
-        push_dataset_to_hub(output_dir, repo_id)
+        push_dataset_to_hub(output_dir, HUB_DATASET_REPO_ID)
 
 
 if __name__ == "__main__":

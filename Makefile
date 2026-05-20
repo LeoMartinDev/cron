@@ -26,16 +26,10 @@ check: lint format-check typecheck
 generate:
 	uv run cron-generate
 
-generate-llm:
-	OPENROUTER_API_KEY=$(OPENROUTER_API_KEY) uv run cron-generate
-
 # ── Training ──────────────────────────────────────────────────────────
 
 train:
 	uv run cron-train
-
-train-qwen:
-	uv run cron-train --base-model unsloth/Qwen2.5-0.5B
 
 # ── Evaluation ────────────────────────────────────────────────────────
 

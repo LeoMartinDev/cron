@@ -12,7 +12,18 @@ Usage:
 from __future__ import annotations
 
 import sys
+import warnings
 from pathlib import Path
+
+# Suppress FutureWarning from transformers' deprecated attention mask API.
+# The old API (transformers.modeling_attn_mask_utils.AttentionMaskConverter)
+# is deprecated in favor of transformers.masking_utils.
+# Unsloth still uses the old API as of v2026.5.4 — this suppresses the noise.
+warnings.filterwarnings(
+    "ignore",
+    message=".*attention mask API.*",
+    category=FutureWarning,
+)
 
 import torch
 from unsloth import FastLanguageModel
@@ -64,12 +75,15 @@ def predict(model, tokenizer, user_input: str) -> str:
         outputs = model.generate(
             **inputs,
             max_new_tokens=32,
+            # Set max_length=None to override the model's default max_length
+            # (required when using max_new_tokens to avoid a generation warning)
+            max_length=None,
             temperature=0.0,  # greedy decoding for deterministic output
             pad_token_id=tokenizer.pad_token_id,
             eos_token_id=tokenizer.eos_token_id,
         )
 
-    # Decode only the newly generated tokens
+    # Decode only the newly generated tokens (skip the input prompt)
     response = tokenizer.decode(
         outputs[0][inputs["input_ids"].shape[1] :],
         skip_special_tokens=True,

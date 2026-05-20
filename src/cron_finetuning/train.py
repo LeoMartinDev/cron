@@ -14,14 +14,25 @@ Also works with: unsloth/Qwen2.5-0.5B, unsloth/Llama-3.2-1B, unsloth/Qwen2.5-1.5
 from __future__ import annotations
 
 import json
+import warnings
 from pathlib import Path
+
+# Suppress FutureWarning from transformers' deprecated attention mask API.
+# The old API (transformers.modeling_attn_mask_utils.AttentionMaskConverter)
+# is deprecated in favor of transformers.masking_utils.
+# Unsloth still uses the old API as of v2026.5.4 — this suppresses the noise.
+warnings.filterwarnings(
+    "ignore",
+    message=".*attention mask API.*",
+    category=FutureWarning,
+)
 
 # Unsloth MUST be imported before torch, transformers, trl, peft
 # as it monkey-patches them for QLoRA + fast kernels.
 from datasets import Dataset
-from transformers import TrainingArguments
+from trl import SFTConfig
 from unsloth import FastLanguageModel, UnslothTrainer, is_bfloat16_supported
-from unsloth.chat_templates import get_chat_template
+from unsloth.chat_templates import get_chat_template, train_on_responses_only
 
 # ============================================================================
 # Default configuration
@@ -43,7 +54,7 @@ CONFIG = {
         "up_proj",
         "down_proj",
     ],
-    "epochs": 15,
+    "epochs": 3,  # Unsloth recommends 1-3 epochs for instruction fine-tuning
     "per_device_train_batch_size": 2,
     "gradient_accumulation_steps": 4,
     "learning_rate": 2e-4,
@@ -156,7 +167,7 @@ def train(
         lora_dropout=CONFIG["lora_dropout"],
         target_modules=CONFIG["lora_target_modules"],
         use_gradient_checkpointing="unsloth",
-        random_state=42,
+        random_state=3407,  # Unsloth recommended seed
     )
 
     # 4. Attach chat template & pre-tokenize
@@ -197,8 +208,9 @@ def train(
     print(f"  Train tokens max length: {max(len(ids) for ids in train_ds['input_ids'])}")
     print(f"  Valid tokens max length: {max(len(ids) for ids in valid_ds['input_ids'])}")
 
-    # 5. Training arguments
-    training_args = TrainingArguments(
+    # 5. Training arguments — use SFTConfig from trl (Unsloth recommended)
+    bf16 = is_bfloat16_supported()
+    training_args = SFTConfig(
         output_dir=str(output_dir),
         num_train_epochs=CONFIG["epochs"],
         per_device_train_batch_size=CONFIG["per_device_train_batch_size"],
@@ -218,10 +230,12 @@ def train(
         load_best_model_at_end=True,
         metric_for_best_model="eval_loss",
         greater_is_better=False,
-        bf16=is_bfloat16_supported(),
-        fp16=not is_bfloat16_supported(),
+        bf16=bf16,
+        fp16=not bf16,
+        bf16_full_eval=bf16,  # Reduce eval memory usage (Unsloth recommended)
+        fp16_full_eval=not bf16,
         report_to=CONFIG["report_to"],
-        seed=42,
+        seed=3407,
         run_name="cron-finetune",
     )
 
@@ -235,18 +249,27 @@ def train(
         eval_dataset=valid_ds,
     )
 
-    # 7. Train
+    # 7. Train on assistant responses only — masks out the user/system
+    #    portions so the model focuses on learning to generate correct
+    #    cron expressions. This is known to increase accuracy by 1%+.
+    trainer = train_on_responses_only(
+        trainer,
+        instruction_part="<|im_start|>user\n",
+        response_part="<|im_start|>assistant\n",
+    )
+
+    # 8. Train
     print("\nStarting training...")
     trainer.train(resume_from_checkpoint=resume_from_checkpoint)
 
-    # 8. Save final model
+    # 9. Save final model
     final_dir = output_dir / "final"
     print(f"\nSaving final model to {final_dir}...")
     model.save_pretrained(str(final_dir))
     tokenizer.save_pretrained(str(final_dir))
     print(f"Done! Model saved to {final_dir}")
 
-    # 9. Optionally push to HuggingFace Hub
+    # 10. Optionally push to HuggingFace Hub
     if push_to_hub:
         if not repo_id:
             raise ValueError("repo_id is required when push_to_hub=True")

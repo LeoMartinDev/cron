@@ -12,8 +12,19 @@ from __future__ import annotations
 
 import json
 import sys
+import warnings
 from collections import defaultdict
 from pathlib import Path
+
+# Suppress FutureWarning from transformers' deprecated attention mask API.
+# The old API (transformers.modeling_attn_mask_utils.AttentionMaskConverter)
+# is deprecated in favor of transformers.masking_utils.
+# Unsloth still uses the old API as of v2026.5.4 — this suppresses the noise.
+warnings.filterwarnings(
+    "ignore",
+    message=".*attention mask API.*",
+    category=FutureWarning,
+)
 
 import torch
 from unsloth import FastLanguageModel
@@ -81,11 +92,15 @@ def predict(model, tokenizer, user_input: str) -> str:
         outputs = model.generate(
             **inputs,
             max_new_tokens=32,
-            temperature=0.0,
+            # Set max_length=None to override the model's default max_length
+            # (required when using max_new_tokens to avoid a generation warning)
+            max_length=None,
+            temperature=0.0,  # greedy decoding for deterministic output
             pad_token_id=tokenizer.pad_token_id,
             eos_token_id=tokenizer.eos_token_id,
         )
 
+    # Decode only the newly generated tokens (skip the input prompt)
     response = tokenizer.decode(
         outputs[0][inputs["input_ids"].shape[1] :],
         skip_special_tokens=True,
@@ -150,9 +165,23 @@ def evaluate(
     cron_as_wrong_cron = 0  # cron predicted but wrong cron
 
     for i, ex in enumerate(test_examples):
-        user_text = ex.get("user", "")
-        # Extract target from messages if present, else from 'target' key
-        target = ex["messages"][-1]["content"] if "messages" in ex else ex.get("target", "")
+        # Extract user text from messages (role=user) or top-level 'user' key
+        user_text = ""
+        for msg in ex.get("messages", []):
+            if msg.get("role") == "user":
+                user_text = msg["content"]
+                break
+        if not user_text:
+            user_text = ex.get("user", "")
+
+        # Extract target from messages (role=assistant) or top-level 'target' key
+        target = ""
+        for msg in ex.get("messages", []):
+            if msg.get("role") == "assistant":
+                target = msg["content"]
+                break
+        if not target:
+            target = ex.get("target", "")
 
         family = ex.get("family", "unknown")
 
@@ -184,11 +213,13 @@ def evaluate(
     # Compute metrics
     accuracy = 100 * correct / total if total > 0 else 0.0
 
-    cron_total = sum(
-        1
-        for ex in test_examples
-        if (ex.get("target") or ex.get("messages", [{}])[-1].get("content", "")) != "INVALID"
-    )
+    def _get_target(ex):
+        for msg in ex.get("messages", []):
+            if msg.get("role") == "assistant":
+                return msg["content"]
+        return ex.get("target", "")
+
+    cron_total = sum(1 for ex in test_examples if _get_target(ex) != "INVALID")
     invalid_total = total - cron_total
 
     cron_correct = cron_as_cron

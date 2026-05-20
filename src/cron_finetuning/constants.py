@@ -50,4 +50,9 @@ WEEKDAYS: list[dict[str, object]] = [
 OPENROUTER_URL: str = "https://openrouter.ai/api/v1/chat/completions"
 
 # Default model for LLM augmentation
-DEFAULT_MODEL: str = "openai/gpt-4o-mini"
+DEFAULT_MODEL: str = "google/gemini-3.1-flash-litei"
+
+# Default HuggingFace Hub repositories (set these to your own to avoid
+# passing --repo-id on every command)
+HUB_MODEL_REPO_ID: str | None = "leom21/cron"  # e.g. "username/cron-model"
+HUB_DATASET_REPO_ID: str | None = "leom21/cron"  # e.g. "username/cron-dataset"

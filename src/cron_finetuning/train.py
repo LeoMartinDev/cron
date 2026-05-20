@@ -106,6 +106,10 @@ def train(
     resume_from_checkpoint: str | None = None,
     push_to_hub: bool = False,
     repo_id: str | None = None,
+    *,
+    export_merged: bool = True,
+    export_gguf: bool = True,
+    gguf_quant: str = "q4_k_m",
 ) -> None:
     """Run the full training pipeline.
 
@@ -118,6 +122,9 @@ def train(
         resume_from_checkpoint: Path to a checkpoint to resume from.
         push_to_hub: Whether to push the final model to HuggingFace Hub.
         repo_id: HF Hub model repo ID (required if push_to_hub is True).
+        export_merged: Save a full 16-bit merged model (LoRA fused into base).
+        export_gguf: Save a GGUF quantized model for llama.cpp.
+        gguf_quant: GGUF quantization method (default: "q4_k_m").
     """
     project_root = Path(__file__).resolve().parent.parent.parent
     train_path = Path(data_dir) / "train.jsonl"
@@ -262,21 +269,65 @@ def train(
     print("\nStarting training...")
     trainer.train(resume_from_checkpoint=resume_from_checkpoint)
 
-    # 9. Save final model
+    # 9. Save LoRA adapter (lightweight delta)
     final_dir = output_dir / "final"
-    print(f"\nSaving final model to {final_dir}...")
+    print(f"\n[9/11] Saving LoRA adapter to {final_dir}...")
     model.save_pretrained(str(final_dir))
     tokenizer.save_pretrained(str(final_dir))
-    print(f"Done! Model saved to {final_dir}")
+    print(f"       LoRA adapter saved to {final_dir}")
 
-    # 10. Optionally push to HuggingFace Hub
+    # 10. Save merged 16-bit model (self-contained, no LoRA loading needed)
+    if export_merged:
+        merged_dir = output_dir / "final-merged"
+        print(f"\n[10/11] Saving merged 16-bit model to {merged_dir}...")
+        print("         This merges LoRA weights into the base model and saves in full precision.")
+        model.save_pretrained_merged(
+            str(merged_dir),
+            tokenizer=tokenizer,
+            save_method="merged_16bit",
+        )
+        print(f"         Merged model saved to {merged_dir}")
+
+    # 11. Save GGUF quantized model (for llama.cpp / Ollama)
+    if export_gguf:
+        gguf_dir = output_dir / "final-gguf"
+        print(f"\n[11/11] Saving GGUF {gguf_quant.upper()} to {gguf_dir}...")
+        print("         This converts the merged model to GGUF format via llama.cpp.")
+        print("         The first conversion may take ~10–15 minutes while llama.cpp is installed.")
+        model.save_pretrained_gguf(
+            str(gguf_dir),
+            tokenizer=tokenizer,
+            quantization_method=gguf_quant,
+        )
+        print(f"         GGUF model saved to {gguf_dir}")
+
+    # 12. Optionally push to HuggingFace Hub
     if push_to_hub:
         if not repo_id:
             raise ValueError("repo_id is required when push_to_hub=True")
 
         from .dataset import push_model_to_hub
 
-        push_model_to_hub(final_dir, repo_id)
+        # Push LoRA adapter
+        push_model_to_hub(final_dir, f"{repo_id}-lora", commit_message="Update LoRA adapter")
+
+        # Push merged model
+        if export_merged:
+            model.push_to_hub_merged(
+                repo_id,
+                tokenizer=tokenizer,
+                save_method="merged_16bit",
+                commit_message="Update merged 16-bit model",
+            )
+
+        # Push GGUF
+        if export_gguf:
+            model.push_to_hub_gguf(
+                repo_id,
+                tokenizer=tokenizer,
+                quantization_method=gguf_quant,
+                commit_message=f"Update GGUF {gguf_quant.upper()}",
+            )
 
 
 # ============================================================================

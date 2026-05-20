@@ -46,6 +46,21 @@ def main() -> None:
         dest="repo_id",
         help="HuggingFace Hub model repo ID (e.g. 'username/cron-model')",
     )
+    parser.add_argument(
+        "--no-merged",
+        action="store_true",
+        help="Skip saving the full 16-bit merged model",
+    )
+    parser.add_argument(
+        "--no-gguf",
+        action="store_true",
+        help="Skip saving the GGUF quantized model",
+    )
+    parser.add_argument(
+        "--gguf-quant",
+        default="q4_k_m",
+        help="GGUF quantization method (default: q4_k_m). Also accepts: 'quantized', 'fast_quantized', 'not_quantized', 'f16', 'q8_0', 'q5_k_m', etc.",
+    )
     args = parser.parse_args()
 
     # Auto-enable push when hub-repo-id is provided
@@ -58,6 +73,9 @@ def main() -> None:
         resume_from_checkpoint=args.resume_from_checkpoint,
         push_to_hub=push,
         repo_id=args.repo_id,
+        export_merged=not args.no_merged,
+        export_gguf=not args.no_gguf,
+        gguf_quant=args.gguf_quant,
     )
 
 

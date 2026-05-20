@@ -72,6 +72,7 @@ cron-generate = "scripts.generate:main"
 cron-train = "scripts.train:main"
 cron-inference = "scripts.inference:main"
 cron-evaluate = "scripts.evaluate:main"
+cron-push = "scripts.push:main"
 
 [project.urls]
 Homepage = "https://github.com/user/cron-finetuning"
@@ -108,6 +109,8 @@ indent-style = "space"
 skip-magic-trailing-comma = false
 
 # ── Type checking ─────────────────────────────────────────────────────
+# pyright and basedpyright both read from [tool.pyright].
+# To use basedpyright:  uvx basedpyright src/ scripts/
 
 [tool.pyright]
 pythonVersion = "3.10"
@@ -119,11 +122,6 @@ exclude = ["**/__pycache__", "dist", "build", ".venv", "_unsloth_sentencepiece_t
 reportMissingImports = true
 reportMissingTypeStubs = false
 reportPrivateUsage = false
-
-[tool.basedpyright]
-# If you switch to basedpyright, it reads the same [tool.pyright] section.
-# basedpyright is a fork of pyright with better defaults for non-Microsoft users.
-# To use: uvx basedpyright src/ scripts/
 
 # ── Type checker (mypy) ───────────────────────────────────────────────
 

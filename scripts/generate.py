@@ -8,6 +8,7 @@ from pathlib import Path
 # Ensure src/ is on the path so we can import cron_finetuning
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
+from cron_finetuning.constants import HUB_DATASET_REPO_ID
 from cron_finetuning.generate import generate
 
 
@@ -29,8 +30,8 @@ def main() -> None:
     )
     parser.add_argument(
         "--repo-id",
-        default=None,
-        help="HuggingFace Hub repository ID (e.g. 'username/cron-dataset')",
+        default=HUB_DATASET_REPO_ID,
+        help="HuggingFace Hub repository ID (default from constants.py, or e.g. 'username/cron-dataset')",
     )
     args = parser.parse_args()
 

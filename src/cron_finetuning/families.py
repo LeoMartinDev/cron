@@ -107,7 +107,8 @@ def every_n_minutes_examples() -> list[dict[str, Any]]:
 
     out: list[dict[str, Any]] = []
     for n in values:
-        target = f"*/{n} * * * *"
+        # "Every 60 minutes" is equivalent to top-of-hour in 5-field cron.
+        target = "0 * * * *" if n == 60 else f"*/{n} * * * *"
         out.append(_ex("every_n_minutes", user=f"Every {n} minutes", target=target))
         out.append(_ex("every_n_minutes", user=f"Run every {n} minutes", target=target))
         out.append(_ex("every_n_minutes", user=f"Once every {n} minutes", target=target))
@@ -450,7 +451,6 @@ def twice_daily_examples() -> list[dict[str, Any]]:
     """Two specific times every day."""
     pairs: list[dict[str, Any]] = [
         {"h1": 8, "m1": 0, "h2": 20, "m2": 0},
-        {"h1": 9, "m1": 0, "h2": 17, "m2": 30},
         {"h1": 6, "m1": 30, "h2": 18, "m2": 30},
         {"h1": 7, "m1": 0, "h2": 19, "m2": 0},
         {"h1": 12, "m1": 0, "h2": 23, "m2": 0},

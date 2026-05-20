@@ -198,8 +198,18 @@ def train(
         return tokenized
 
     print("\nTokenizing datasets...")
-    train_ds = train_ds.map(_tokenize, batched=True, batch_size=64, remove_columns=["messages"])
-    valid_ds = valid_ds.map(_tokenize, batched=True, batch_size=64, remove_columns=["messages"])
+    train_ds = train_ds.map(
+        _tokenize,
+        batched=True,
+        batch_size=64,
+        remove_columns=list(train_ds.column_names),
+    )
+    valid_ds = valid_ds.map(
+        _tokenize,
+        batched=True,
+        batch_size=64,
+        remove_columns=list(valid_ds.column_names),
+    )
     print(f"  Train tokens max length: {max(len(ids) for ids in train_ds['input_ids'])}")
     print(f"  Valid tokens max length: {max(len(ids) for ids in valid_ds['input_ids'])}")
 

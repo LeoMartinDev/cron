@@ -2,11 +2,46 @@
 
 from __future__ import annotations
 
+import json
 import random
 import re
 from typing import Any
 
 from .constants import SYSTEM_PROMPT
+
+MONTH_NAME_TO_NUMBER = {
+    "january": 1,
+    "february": 2,
+    "march": 3,
+    "april": 4,
+    "may": 5,
+    "june": 6,
+    "july": 7,
+    "august": 8,
+    "september": 9,
+    "october": 10,
+    "november": 11,
+    "december": 12,
+}
+
+WEEKDAY_NAME_TO_NUMBER = {
+    "monday": 1,
+    "mon": 1,
+    "tuesday": 2,
+    "tue": 2,
+    "tues": 2,
+    "wednesday": 3,
+    "wed": 3,
+    "thursday": 4,
+    "thu": 4,
+    "thurs": 4,
+    "friday": 5,
+    "fri": 5,
+    "saturday": 6,
+    "sat": 6,
+    "sunday": 0,
+    "sun": 0,
+}
 
 
 def pad2(n: int) -> str:
@@ -47,15 +82,14 @@ def ordinal(n: int) -> str:
 
 def to_line(example: dict[str, Any]) -> str:
     """Convert an example dict to a JSONL line in chatml format."""
-    import json
-
     return json.dumps(
         {
+            **example,
             "messages": [
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": example["user"]},
                 {"role": "assistant", "content": example["target"]},
-            ]
+            ],
         }
     )
 
@@ -73,7 +107,22 @@ def cron_regex() -> re.Pattern[str]:
 
 def is_cron_target(value: str) -> bool:
     """Check if a value is a valid 5-field cron expression."""
-    return bool(cron_regex().match(value.strip()))
+    value = value.strip()
+    if not cron_regex().match(value):
+        return False
+
+    fields = value.split()
+    if len(fields) != 5:
+        return False
+
+    bounds = [
+        (0, 59),
+        (0, 23),
+        (1, 31),
+        (1, 12),
+        (0, 7),
+    ]
+    return all(_is_valid_field(field, min_value, max_value) for field, (min_value, max_value) in zip(fields, bounds))
 
 
 def is_valid_target(value: str) -> bool:
@@ -156,21 +205,273 @@ def parse_cron_fields(target: str) -> list[str]:
 def is_semantically_consistent(user_text: str, target: str) -> bool:
     """Check that a paraphrased user prompt is semantically consistent with the cron target."""
     fields = parse_cron_fields(target)
-    if len(fields) != 5:
+    if len(fields) != 5 or not is_cron_target(target):
         return False
-    _min, _hour, _dom, _mon, dow = fields
+
+    minute, hour, day_of_month, month, day_of_week = fields
     lower = user_text.lower()
 
-    # "daily except X" / "every day except X" / "weekdays except X" are valid
-    if re.search(r"\b(daily|every\s+day|weekdays?)\s+except\b", lower):
+    expected_time = _target_single_time(fields)
+    mentioned_time = _extract_time_mentions(lower)
+    mentioned_days = _extract_weekday_mentions(lower)
+    mentioned_months = _extract_month_mentions(lower)
+    mentioned_month_days = _extract_day_of_month_mentions(lower)
+    mentioned_minute_interval = _extract_minute_interval(lower)
+    mentions_weekdays = _mentions_weekdays(lower)
+
+    if _is_daily_target(fields):
+        return (
+            expected_time is not None
+            and mentioned_time == {expected_time}
+            and not mentions_weekdays
+            and not mentioned_days
+            and not mentioned_months
+            and not mentioned_month_days
+            and mentioned_minute_interval is None
+        )
+
+    if _is_every_n_minutes_target(fields):
+        expected_interval = int(minute[2:])
+        return (
+            mentioned_minute_interval == expected_interval
+            and not mentioned_time
+            and not mentions_weekdays
+            and not mentioned_days
+            and not mentioned_months
+            and not mentioned_month_days
+        )
+
+    if _is_weekdays_target(fields):
+        return (
+            expected_time is not None
+            and mentioned_time == {expected_time}
+            and _mentions_full_weekdays(lower, mentioned_days)
+            and not mentioned_months
+            and not mentioned_month_days
+            and mentioned_minute_interval is None
+        )
+
+    if _is_monthly_on_day_target(fields):
+        return (
+            expected_time is not None
+            and mentioned_time == {expected_time}
+            and mentioned_month_days == {int(day_of_month)}
+            and not mentions_weekdays
+            and not mentioned_days
+            and not mentioned_months
+            and mentioned_minute_interval is None
+        )
+
+    if _is_weekly_on_day_target(fields):
+        expected_days = _expand_day_of_week_field(day_of_week)
+        return (
+            expected_time is not None
+            and mentioned_time == {expected_time}
+            and expected_days is not None
+            and mentioned_days == expected_days
+            and not mentions_weekdays
+            and not mentioned_months
+            and not mentioned_month_days
+            and mentioned_minute_interval is None
+        )
+
+    if _is_top_of_hour_target(fields):
+        return (
+            (
+                mentioned_minute_interval == 60
+                or bool(re.search(r"\b(every hour|run every hour|once every hour|hourly|on the hour)\b", lower))
+            )
+            and not mentioned_time
+            and not mentions_weekdays
+            and not mentioned_days
+            and not mentioned_months
+            and not mentioned_month_days
+        )
+
+    # For unsupported target shapes, keep the filter conservative and reject.
+    return False
+
+
+def _is_valid_field(field: str, min_value: int, max_value: int) -> bool:
+    if field == "*":
         return True
 
-    # If cron has day-of-week restriction, must NOT say daily/every day without except
-    if dow != "*" and re.search(r"\b(daily|every\s+day|each\s+day|run\s+every\s+day)\b", lower):
-        return False
+    if field.startswith("*/"):
+        step_value = field[2:]
+        return step_value.isdigit() and 1 <= int(step_value) <= max_value
 
-    # If cron is not the full weekday range (1-5), must NOT say weekday without except
-    return not (
-        (dow != "1-5" and dow != "*")
-        and re.search(r"\b(weekdays?|monday\s+to\s+friday|m-f)\b(?!\s+except)", lower)
+    for part in field.split(","):
+        if "-" in part:
+            start_str, end_str = part.split("-", 1)
+            if not start_str.isdigit() or not end_str.isdigit():
+                return False
+            start, end = int(start_str), int(end_str)
+            if not (min_value <= start <= max_value and min_value <= end <= max_value and start <= end):
+                return False
+            continue
+
+        if not part.isdigit():
+            return False
+
+        value = int(part)
+        if not (min_value <= value <= max_value):
+            return False
+
+    return True
+
+
+def _is_daily_target(fields: list[str]) -> bool:
+    minute, hour, day_of_month, month, day_of_week = fields
+    return minute.isdigit() and hour.isdigit() and day_of_month == "*" and month == "*" and day_of_week == "*"
+
+
+def _is_every_n_minutes_target(fields: list[str]) -> bool:
+    minute, hour, day_of_month, month, day_of_week = fields
+    return minute.startswith("*/") and hour == "*" and day_of_month == "*" and month == "*" and day_of_week == "*"
+
+
+def _is_top_of_hour_target(fields: list[str]) -> bool:
+    minute, hour, day_of_month, month, day_of_week = fields
+    return minute == "0" and hour == "*" and day_of_month == "*" and month == "*" and day_of_week == "*"
+
+
+def _is_weekdays_target(fields: list[str]) -> bool:
+    minute, hour, day_of_month, month, day_of_week = fields
+    return minute.isdigit() and hour.isdigit() and day_of_month == "*" and month == "*" and day_of_week == "1-5"
+
+
+def _is_monthly_on_day_target(fields: list[str]) -> bool:
+    minute, hour, day_of_month, month, day_of_week = fields
+    return minute.isdigit() and hour.isdigit() and day_of_month.isdigit() and month == "*" and day_of_week == "*"
+
+
+def _is_weekly_on_day_target(fields: list[str]) -> bool:
+    minute, hour, day_of_month, month, day_of_week = fields
+    return (
+        minute.isdigit()
+        and hour.isdigit()
+        and day_of_month == "*"
+        and month == "*"
+        and _expand_day_of_week_field(day_of_week) is not None
+        and day_of_week != "1-5"
     )
+
+
+def _target_single_time(fields: list[str]) -> tuple[int, int] | None:
+    minute, hour, *_ = fields
+    if not minute.isdigit() or not hour.isdigit():
+        return None
+    return int(hour), int(minute)
+
+
+def _extract_time_mentions(text: str) -> set[tuple[int, int]]:
+    matches: set[tuple[int, int]] = set()
+
+    if "midnight" in text:
+        matches.add((0, 0))
+    if "noon" in text:
+        matches.add((12, 0))
+
+    for match in re.finditer(r"\b(?P<hour>1[0-2]|0?[1-9])(?::(?P<minute>[0-5]\d))?\s*(?P<ampm>am|pm)\b", text):
+        hour = int(match.group("hour")) % 12
+        minute = int(match.group("minute") or "0")
+        if match.group("ampm") == "pm":
+            hour += 12
+        matches.add((hour, minute))
+
+    for match in re.finditer(r"\b(?P<hour>[01]?\d|2[0-3]):(?P<minute>[0-5]\d)\b", text):
+        matches.add((int(match.group("hour")), int(match.group("minute"))))
+
+    for match in re.finditer(r"\bat\s+(?P<hour>\d{1,2})\b", text):
+        hour = int(match.group("hour"))
+        if hour > 23:
+            continue
+
+        if hour > 12:
+            matches.add((hour, 0))
+            continue
+
+        if "morning" in text:
+            matches.add((0 if hour == 12 else hour, 0))
+        elif "afternoon" in text or "evening" in text or "night" in text:
+            matches.add((12 if hour == 12 else hour + 12, 0))
+
+    return matches
+
+
+def _extract_minute_interval(text: str) -> int | None:
+    match = re.search(
+        r"\b(?:every|run every|once every)\s+(?P<value>\d+)\s*(?:minutes?|mins?|min|m)\b",
+        text,
+    )
+    if match:
+        return int(match.group("value"))
+
+    if "every half hour" in text:
+        return 30
+    if "every quarter hour" in text:
+        return 15
+    return None
+
+
+def _extract_day_of_month_mentions(text: str) -> set[int]:
+    matches = {int(value) for value in re.findall(r"\b(\d{1,2})(?:st|nd|rd|th)\b", text)}
+    matches.update(int(value) for value in re.findall(r"\bday\s+(\d{1,2})\b", text))
+    return matches
+
+
+def _extract_month_mentions(text: str) -> set[int]:
+    matches: set[int] = set()
+    for name, number in MONTH_NAME_TO_NUMBER.items():
+        if re.search(rf"\b{name}\b", text):
+            matches.add(number)
+    return matches
+
+
+def _extract_weekday_mentions(text: str) -> set[int]:
+    matches: set[int] = set()
+    for name, number in WEEKDAY_NAME_TO_NUMBER.items():
+        if re.search(rf"\b{name}\b", text):
+            matches.add(number)
+    return matches
+
+
+def _mentions_weekdays(text: str) -> bool:
+    return bool(
+        re.search(
+            r"\b(weekday|weekdays|monday\s+(?:to|through)\s+friday|mon\s*-\s*fri|m-f)\b",
+            text,
+        )
+    )
+
+
+def _mentions_full_weekdays(text: str, explicit_days: set[int]) -> bool:
+    if _mentions_weekdays(text):
+        return True
+
+    return explicit_days == {1, 2, 3, 4, 5}
+
+
+def _expand_day_of_week_field(field: str) -> set[int] | None:
+    if field == "*":
+        return None
+
+    values: set[int] = set()
+    for part in field.split(","):
+        if "-" in part:
+            start_str, end_str = part.split("-", 1)
+            if not start_str.isdigit() or not end_str.isdigit():
+                return None
+            start, end = int(start_str), int(end_str)
+            if start > end:
+                return None
+            values.update(_normalize_day_of_week(value) for value in range(start, end + 1))
+        else:
+            if not part.isdigit():
+                return None
+            values.add(_normalize_day_of_week(int(part)))
+    return values
+
+
+def _normalize_day_of_week(value: int) -> int:
+    return 0 if value == 7 else value

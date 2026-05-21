@@ -4,28 +4,29 @@ const config = window.CRON_DEMO_CONFIG ?? {};
 const CDN_WASM_PATHS = {
   default: "https://cdn.jsdelivr.net/npm/@wllama/wllama@3.1.1/esm/wasm/wllama.wasm",
 };
+const PLACEHOLDER_OUTPUT = "Ready for a prediction.";
+const PENDING_OUTPUT = "Generating...";
 
 const elements = {
   appTitle: document.querySelector("[data-app-title]"),
   appSubtitle: document.querySelector("[data-app-subtitle]"),
+  breadcrumbPath: document.querySelector("[data-breadcrumb-path]"),
+  promptForm: document.querySelector("[data-prompt-form]"),
   promptInput: document.querySelector("[data-prompt-input]"),
   runButton: document.querySelector("[data-run]"),
   copyButton: document.querySelector("[data-copy]"),
-  exampleList: document.querySelector("[data-examples]"),
   statusText: document.querySelector("[data-status-text]"),
-  progressBar: document.querySelector("[data-progress-bar]"),
-  progressText: document.querySelector("[data-progress-text]"),
-  activeModel: document.querySelector("[data-active-model]"),
+  statusDot: document.querySelector("[data-status-dot]"),
   normalizedOutput: document.querySelector("[data-normalized-output]"),
-  rawOutput: document.querySelector("[data-raw-output]"),
-  rawOutputWrap: document.querySelector("[data-raw-output-wrap]"),
-  browserWarning: document.querySelector("[data-browser-warning]"),
 };
 
 const state = {
   wllama: null,
   modelLoaded: false,
-  busy: false,
+  phase: "booting",
+  outputState: "placeholder",
+  lastOutput: "",
+  copyResetTimer: null,
 };
 
 const CRON_FIELD = String.raw`\*|\*\/\d+|\d+(?:-\d+)?(?:,\d+(?:-\d+)?)*`;
@@ -35,39 +36,13 @@ const CRON_REGEX = new RegExp(
 );
 
 function setStatus(message, tone = "neutral") {
-  elements.statusText.textContent = message;
+  if (elements.statusText) {
+    elements.statusText.textContent = message;
+  }
 
-  const toneClasses = {
-    neutral: "text-stone-100",
-    success: "text-emerald-200",
-    warning: "text-amber-200",
-    error: "text-rose-300",
-  };
-
-  elements.statusText.className = `text-sm font-medium ${toneClasses[tone] ?? toneClasses.neutral}`;
-}
-
-function setProgress(value, label = "") {
-  const clamped = Math.max(0, Math.min(100, value));
-  elements.progressBar.style.width = `${clamped}%`;
-  elements.progressText.textContent = label || `${Math.round(clamped)}%`;
-}
-
-function setBusy(isBusy) {
-  state.busy = isBusy;
-  elements.runButton.disabled = isBusy || !state.modelLoaded;
-  elements.copyButton.disabled = isBusy;
-  elements.promptInput.disabled = isBusy && !state.modelLoaded;
-}
-
-function setLoadedModelLabel(label) {
-  elements.activeModel.textContent = label;
-}
-
-function setOutputs(normalized, raw) {
-  elements.normalizedOutput.textContent = normalized || "Waiting for a prediction...";
-  elements.rawOutput.textContent = raw || "";
-  elements.rawOutputWrap.hidden = !raw;
+  if (elements.statusDot) {
+    elements.statusDot.dataset.tone = tone;
+  }
 }
 
 function normalizeModelOutput(raw) {
@@ -132,33 +107,75 @@ function updateHeaderCopy() {
   elements.appTitle.textContent = config.title ?? "Cron Console";
   elements.appSubtitle.textContent =
     config.subtitle ??
-    "Turn plain English scheduling requests into Unix cron with a local GGUF model.";
+    "(English) to Cron.";
+  elements.promptInput.placeholder = config.placeholder ?? "Every weekday at 9:00";
+  elements.breadcrumbPath.textContent =
+    config.breadcrumb ?? "/home/dev/cron-finetuning/demo";
 }
 
-function renderExamples() {
-  const examples = Array.isArray(config.examples) ? config.examples : [];
-  elements.exampleList.innerHTML = "";
+function syncControls() {
+  const loadingModel = state.phase === "booting" || state.phase === "loading";
+  const generating = state.phase === "running";
 
-  for (const example of examples) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className =
-      "rounded-full border border-stone-300 bg-white/80 px-3 py-2 text-left text-sm text-stone-700 transition hover:border-amber-500 hover:bg-amber-50 hover:text-stone-900";
-    button.textContent = example;
-    button.addEventListener("click", () => {
-      elements.promptInput.value = example;
-      elements.promptInput.focus();
-    });
-    elements.exampleList.append(button);
+  if (loadingModel) {
+    elements.runButton.textContent = "Loading model...";
+  } else if (generating) {
+    elements.runButton.textContent = "Generating...";
+  } else if (state.modelLoaded) {
+    elements.runButton.textContent = "Generate";
+  } else {
+    elements.runButton.textContent = "Model unavailable";
   }
+
+  elements.runButton.disabled = state.phase !== "ready";
+  elements.copyButton.disabled = generating || state.outputState !== "result";
+  elements.promptInput.disabled = loadingModel || generating;
+}
+
+function clearCopyResetTimer() {
+  if (state.copyResetTimer) {
+    window.clearTimeout(state.copyResetTimer);
+    state.copyResetTimer = null;
+  }
+}
+
+function resetCopyButtonLabel() {
+  clearCopyResetTimer();
+  elements.copyButton.textContent = "Copy";
+}
+
+function flashCopyButtonLabel(label) {
+  resetCopyButtonLabel();
+  elements.copyButton.textContent = label;
+  state.copyResetTimer = window.setTimeout(() => {
+    elements.copyButton.textContent = "Copy";
+    state.copyResetTimer = null;
+  }, 1400);
+}
+
+function setOutput(value, outputState = "result") {
+  state.lastOutput = value;
+  state.outputState = outputState;
+  elements.normalizedOutput.textContent = value;
+  elements.normalizedOutput.classList.toggle("is-placeholder", outputState === "placeholder");
+  elements.normalizedOutput.classList.toggle("is-error", outputState === "error");
+  elements.normalizedOutput.classList.toggle(
+    "is-invalid",
+    outputState === "result" && value === "INVALID",
+  );
+  resetCopyButtonLabel();
+  syncControls();
 }
 
 function ensureBrowserSupport() {
   const supported = typeof WebAssembly === "object";
   if (!supported) {
-    elements.browserWarning.hidden = false;
+    state.phase = "error";
     setStatus("This browser is missing WebAssembly features required by wllama.", "error");
+    syncControls();
   }
+
+  return supported;
 }
 
 async function createWllama() {
@@ -180,19 +197,18 @@ async function releaseModel(resetStatus = true) {
   } finally {
     state.wllama = null;
     state.modelLoaded = false;
-    setLoadedModelLabel("No model loaded");
-
     if (resetStatus) {
+      state.phase = "error";
       setStatus("Model unloaded.", "neutral");
-      setProgress(0, "Idle");
+      syncControls();
     }
   }
 }
 
 async function loadModelFromUrl(url) {
-  setBusy(true);
+  state.phase = "loading";
+  syncControls();
   setStatus("Loading GGUF model from the local server...", "warning");
-  setProgress(2, "Starting");
 
   try {
     const resolvedUrl = resolveModelUrl(url);
@@ -205,27 +221,23 @@ async function loadModelFromUrl(url) {
     await wllama.loadModelFromUrl(resolvedUrl, {
       n_threads: 1,
       progressCallback: ({ loaded, total }) => {
-        if (!total) {
-          setProgress(40, "Downloading model");
-          return;
+        if (total) {
+          const percent = Math.round((loaded / total) * 100);
+          setStatus(`Loading GGUF model from the local server... ${percent}%`, "warning");
         }
-        const percent = (loaded / total) * 100;
-        setProgress(percent, `${Math.round(percent)}%`);
       },
     });
 
     state.modelLoaded = true;
-    setLoadedModelLabel(resolvedUrl);
-    setStatus("Model loaded. You can run cron generation now.", "success");
-    setProgress(100, "Ready");
-    setBusy(false);
+    state.phase = "ready";
+    setStatus("Local model ready.", "success");
   } catch (error) {
     state.modelLoaded = false;
-    setLoadedModelLabel("No model loaded");
+    state.phase = "error";
     setStatus(error instanceof Error ? error.message : "Failed to load the model.", "error");
-    setProgress(0, "Idle");
-    setBusy(false);
   }
+
+  syncControls();
 }
 
 async function runInference() {
@@ -241,10 +253,10 @@ async function runInference() {
     return;
   }
 
-  setBusy(true);
+  state.phase = "running";
+  syncControls();
   setStatus("Generating cron expression...", "warning");
-  setProgress(100, "Running");
-  setOutputs("Thinking...", "");
+  setOutput(PENDING_OUTPUT, "pending");
 
   try {
     const response = await state.wllama.createChatCompletion({
@@ -272,28 +284,29 @@ async function runInference() {
     }
 
     const normalized = normalizeModelOutput(raw);
-    setOutputs(
-      normalized,
-      typeof response === "string" ? raw : JSON.stringify(response, null, 2),
+    setOutput(normalized, "result");
+    setStatus(
+      normalized === "INVALID" ? "Request classified as INVALID." : "Cron expression generated.",
+      "success",
     );
-    setStatus("Inference complete.", "success");
   } catch (error) {
-    setOutputs("Generation failed.", "");
+    setOutput("Generation failed.", "error");
     setStatus(error instanceof Error ? error.message : "Inference failed.", "error");
   } finally {
-    setBusy(false);
+    state.phase = state.modelLoaded ? "ready" : "error";
+    syncControls();
   }
 }
 
 async function copyOutput() {
-  const value = elements.normalizedOutput.textContent?.trim();
-  if (!value || value === "Waiting for a prediction..." || value === "Thinking...") {
+  if (state.outputState !== "result") {
     setStatus("There is no result to copy yet.", "warning");
     return;
   }
 
   try {
-    await navigator.clipboard.writeText(value);
+    await navigator.clipboard.writeText(state.lastOutput);
+    flashCopyButtonLabel("Copied");
     setStatus("Result copied to the clipboard.", "success");
   } catch (error) {
     setStatus(error instanceof Error ? error.message : "Copy failed.", "error");
@@ -303,9 +316,9 @@ async function copyOutput() {
 function wireEvents() {
   elements.runButton.addEventListener("click", runInference);
   elements.copyButton.addEventListener("click", copyOutput);
-
+  elements.promptInput.addEventListener("input", resetCopyButtonLabel);
   elements.promptInput.addEventListener("keydown", (event) => {
-    if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+    if (event.key === "Enter") {
       event.preventDefault();
       runInference();
     }
@@ -314,18 +327,20 @@ function wireEvents() {
 
 function boot() {
   updateHeaderCopy();
-  renderExamples();
-  ensureBrowserSupport();
-  setOutputs("", "");
-  setLoadedModelLabel("No model loaded");
-  setProgress(0, "Idle");
-  setBusy(false);
+  setOutput(PLACEHOLDER_OUTPUT, "placeholder");
   setStatus("Loading the repo GGUF model...");
   wireEvents();
+  syncControls();
+
+  if (!ensureBrowserSupport()) {
+    return;
+  }
 
   const url = config.defaultModelUrl;
   if (!url) {
+    state.phase = "error";
     setStatus("No default GGUF URL is configured in demo/config.js.", "error");
+    syncControls();
     return;
   }
 

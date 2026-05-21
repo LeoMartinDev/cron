@@ -144,7 +144,7 @@ cron-evaluate --save
 7. **multi_weekday_at** — List of specific days at a time
 8. **midnight_noon_at** — Midnight, noon, and common phrases
 9. **hourly_at_minute** — Minute past every hour
-10. **twice_daily** — Two specific times per day
+10. **multi_time_at** — Multiple specific times within the same schedule
 11. **weekend_at** — Saturday and Sunday at a time
 12. **except_weekday_at** — Weekdays minus a specific day
 13. **every_n_hours** — Recurring interval in hours
@@ -169,7 +169,7 @@ cron-evaluate --save
 ## Dataset strategy
 
 1. **Deterministic template generation** — Canonical cron examples are created in code (`families.py`). This guarantees correct labels and consistent cron syntax.
-2. **LLM-based augmentation** — Optional. Uses OpenRouter to generate additional English paraphrases and off-topic INVALID prompts. The LLM is never the source of truth for cron labels.
+2. **LLM-based augmentation** — Optional. Uses OpenRouter to generate additional English paraphrases and off-topic INVALID prompts. Valid paraphrases are generated across 7 writing styles: `precise`, `concise`, `hurried`, `sloppy`, `shorthand`, `conversational`, and `polite`. The LLM is never the source of truth for cron labels.
 
 ## Training config
 

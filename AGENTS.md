@@ -141,17 +141,21 @@ Input: a minute offset past every hour. Uses wildcard hour with specific minute.
 
 Minute values: 0, 5, 10, 15, 25, 30, 45, 55.
 
-### 10. Twice daily (`twice_daily`)
+### 10. Multiple times in one schedule (`multi_time_at`)
 
-Input: two specific times per day. Uses comma-separated hour field.
+Input: multiple specific times that share the same minute, across daily/weekly/monthly-style schedules. Uses comma-separated hour field.
 
 | Pattern | Example input | Output |
 |---|---|---|
-| "At H1:M1 and H2:M2 every day" | `At 8:00 and 20:00 every day` | `0 8,20 * * *` |
-| "Twice a day at H1:M1 and H2:M2" | `Twice a day at 9:00 and 17:30` | `0 9,17 * * *` |
-| "Every day at H1:M1 and H2:M2" | `Every day at 6:30 and 18:30` | `30 6,18 * * *` |
+| "Every day at H1:M1 and H2:M2" | `Every day at 5:00 and 21:00` | `0 5,21 * * *` |
+| "Every Monday at H1:M1 and H2:M2" | `Every Monday at 9 AM and 5 PM` | `0 9,17 * * 1` |
+| "Every weekday at H1:M1 and H2:M2" | `Every weekday at 9 AM and 5 PM` | `0 9,17 * * 1-5` |
+| "Every Monday, Wednesday, and Friday at H1:M1 and H2:M2" | `Every Monday, Wednesday, and Friday at 9 AM and 5 PM` | `0 9,17 * * 1,3,5` |
+| "On the Nth day of every month at H1:M1 and H2:M2" | `On the 15th day of every month at 8 AM and 8 PM` | `0 8,20 15 * *` |
+| "Every {month} at H1:M1 and H2:M2" | `Every January at 8 AM and 8 PM` | `0 8,20 * 1 *` |
+| "On {month} Nth at H1:M1 and H2:M2" | `On January 5th at 9 AM and 5 PM` | `0 9,17 5 1 *` |
 
-Pairs: 8:00/20:00, 9:00/17:30, 6:30/18:30, 7:00/19:00, 12:00/23:00.
+Supported shapes include 2, 3, and 4 times per schedule, provided they share the same minute.
 
 ### 11. Weekend (`weekend_at`)
 
@@ -354,7 +358,7 @@ The test set is **never used during training** — it's held out for unbiased fi
 ## Dataset strategy
 
 1. **Deterministic seed generation** — Canonical cron examples are created in code. This guarantees correct labels and consistent cron syntax.
-2. **LLM-based augmentation** — OpenRouter (Google Gemini Flash Lite) generates additional English paraphrases and off-topic INVALID prompts. The LLM is never the source of truth for cron labels.
+2. **LLM-based augmentation** — OpenRouter (Google Gemini Flash Lite) generates additional English paraphrases and off-topic INVALID prompts. Valid paraphrases are sampled across 7 writing styles: `precise`, `concise`, `hurried`, `sloppy`, `shorthand`, `conversational`, and `polite`. The LLM is never the source of truth for cron labels.
 
 ## Rules
 
@@ -363,6 +367,7 @@ The test set is **never used during training** — it's held out for unbiased fi
 - Non-cron prompts must map to **`INVALID`**
 - No explanations should appear in assistant outputs
 - Synthetic examples must be validated and deduplicated before export
+- LLM paraphrases should cover multiple writing styles, including precise, hurried, sloppy, shorthand, conversational, and polite requests
 - 12h clock (AM/PM) and 24h clock inputs both accepted
 - Compact 12h notation accepted: `6pm`, `9am`, `6:30pm` (no space)
 - "Week day" (two words) and "weekday" (one word) both accepted

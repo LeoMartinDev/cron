@@ -275,6 +275,55 @@ def is_semantically_consistent(user_text: str, target: str) -> bool:
             and mentioned_minute_interval is None
         )
 
+    if _is_multi_time_daily_target(fields):
+        expected_times = _target_time_set(fields)
+        return (
+            expected_times is not None
+            and mentioned_time == expected_times
+            and _mentions_daily(lower)
+            and not mentions_weekdays
+            and not mentioned_days
+            and not mentioned_months
+            and not mentioned_month_days
+            and mentioned_minute_interval is None
+        )
+
+    if _is_multi_time_weekdays_target(fields):
+        expected_times = _target_time_set(fields)
+        return (
+            expected_times is not None
+            and mentioned_time == expected_times
+            and _mentions_full_weekdays(lower, mentioned_days)
+            and not mentioned_months
+            and not mentioned_month_days
+            and mentioned_minute_interval is None
+        )
+
+    if _is_multi_time_weekly_target(fields):
+        expected_times = _target_time_set(fields)
+        expected_days = _expand_day_of_week_field(day_of_week)
+        if expected_times is None or expected_days is None:
+            return False
+
+        if expected_days == {0, 6}:
+            return (
+                mentioned_time == expected_times
+                and (_mentions_weekends(lower) or mentioned_days == expected_days)
+                and not mentions_weekdays
+                and not mentioned_months
+                and not mentioned_month_days
+                and mentioned_minute_interval is None
+            )
+
+        return (
+            mentioned_time == expected_times
+            and mentioned_days == expected_days
+            and not mentions_weekdays
+            and not mentioned_months
+            and not mentioned_month_days
+            and mentioned_minute_interval is None
+        )
+
     if _is_top_of_hour_target(fields):
         return (
             (
@@ -357,11 +406,53 @@ def _is_weekly_on_day_target(fields: list[str]) -> bool:
     )
 
 
+def _is_multi_time_daily_target(fields: list[str]) -> bool:
+    minute, hour, day_of_month, month, day_of_week = fields
+    if day_of_month != "*" or month != "*" or day_of_week != "*":
+        return False
+
+    time_set = _target_time_set(fields)
+    return time_set is not None and len(time_set) > 1
+
+
+def _is_multi_time_weekdays_target(fields: list[str]) -> bool:
+    minute, hour, day_of_month, month, day_of_week = fields
+    if day_of_month != "*" or month != "*" or day_of_week != "1-5":
+        return False
+
+    time_set = _target_time_set(fields)
+    return time_set is not None and len(time_set) > 1
+
+
+def _is_multi_time_weekly_target(fields: list[str]) -> bool:
+    minute, hour, day_of_month, month, day_of_week = fields
+    if day_of_month != "*" or month != "*":
+        return False
+    if day_of_week == "*" or day_of_week == "1-5":
+        return False
+
+    time_set = _target_time_set(fields)
+    expected_days = _expand_day_of_week_field(day_of_week)
+    return time_set is not None and len(time_set) > 1 and expected_days is not None
+
+
 def _target_single_time(fields: list[str]) -> tuple[int, int] | None:
     minute, hour, *_ = fields
     if not minute.isdigit() or not hour.isdigit():
         return None
     return int(hour), int(minute)
+
+
+def _target_time_set(fields: list[str]) -> set[tuple[int, int]] | None:
+    minute, hour, *_ = fields
+    if not minute.isdigit():
+        return None
+
+    hour_parts = hour.split(",")
+    if not hour_parts or any(not part.isdigit() for part in hour_parts):
+        return None
+
+    return {(int(part), int(minute)) for part in hour_parts}
 
 
 def _extract_time_mentions(text: str) -> set[tuple[int, int]]:
@@ -443,6 +534,19 @@ def _mentions_weekdays(text: str) -> bool:
             text,
         )
     )
+
+
+def _mentions_daily(text: str) -> bool:
+    return bool(
+        re.search(
+            r"\b(every day|everyday|daily|twice a day|twice daily|\d+\s+times a day|\d+\s+times daily)\b",
+            text,
+        )
+    )
+
+
+def _mentions_weekends(text: str) -> bool:
+    return bool(re.search(r"\b(weekend|weekends)\b", text))
 
 
 def _mentions_full_weekdays(text: str, explicit_days: set[int]) -> bool:

@@ -443,45 +443,371 @@ def hourly_at_minute_examples() -> list[dict[str, Any]]:
 
 
 # ---------------------------------------------------------------------------
-# 10. twice_daily
+# 10. multi_time_at
 # ---------------------------------------------------------------------------
 
 
-def twice_daily_examples() -> list[dict[str, Any]]:
-    """Two specific times every day."""
-    pairs: list[dict[str, Any]] = [
-        {"h1": 8, "m1": 0, "h2": 20, "m2": 0},
-        {"h1": 6, "m1": 30, "h2": 18, "m2": 30},
-        {"h1": 7, "m1": 0, "h2": 19, "m2": 0},
-        {"h1": 12, "m1": 0, "h2": 23, "m2": 0},
+def _join_series(parts: list[str]) -> str:
+    """Join a list as natural English with an Oxford comma."""
+    if len(parts) == 1:
+        return parts[0]
+    if len(parts) == 2:
+        return f"{parts[0]} and {parts[1]}"
+    return f"{', '.join(parts[:-1])}, and {parts[-1]}"
+
+
+def _format_multi_time_list(
+    hours: tuple[int, ...],
+    minute: int,
+    *,
+    style: str,
+    reverse: bool = False,
+    mixed: bool = False,
+) -> str:
+    """Render a list of hours using one of the supported prompt styles."""
+    ordered = list(reversed(hours)) if reverse else list(hours)
+    values: list[str] = []
+
+    for idx, hour in enumerate(ordered):
+        if mixed and idx % 2 == 1:
+            values.append(to12h(hour, minute))
+            continue
+
+        if style == "24h":
+            values.append(f"{hour}:{pad2(minute)}")
+        elif style == "12h":
+            values.append(to12h(hour, minute))
+        elif style == "compact":
+            values.append(to12h_compact(hour, minute))
+        else:
+            raise ValueError(f"Unknown multi-time style: {style}")
+
+    return _join_series(values)
+
+
+def _multi_time_target(hours: tuple[int, ...], minute: int, dom: str, month: str, dow: str) -> str:
+    hour_field = ",".join(str(hour) for hour in sorted(hours))
+    return f"{minute} {hour_field} {dom} {month} {dow}"
+
+
+def _count_phrase(count: int) -> str:
+    if count == 2:
+        return "Twice"
+    return f"{count} times"
+
+
+def _add_multi_time_prompts(
+    out: list[dict[str, Any]],
+    *,
+    template_specs: list[tuple[str, str, bool, bool]],
+    hours: tuple[int, ...],
+    minute: int,
+    target: str,
+) -> None:
+    """Append prompt variants for a shared multi-time target."""
+    for template, style, reverse, mixed in template_specs:
+        times = _format_multi_time_list(
+            hours,
+            minute,
+            style=style,
+            reverse=reverse,
+            mixed=mixed,
+        )
+        out.append(_ex("multi_time_at", user=template.format(times=times), target=target))
+
+
+def multi_time_at_examples() -> list[dict[str, Any]]:
+    """Multiple specific times within the same schedule when minute is shared."""
+    daily_time_sets = [
+        {"hours": (5, 21), "minute": 0},
+        {"hours": (6, 18), "minute": 30},
+        {"hours": (8, 20), "minute": 0},
+        {"hours": (9, 17), "minute": 0},
+        {"hours": (6, 12, 18), "minute": 0},
+        {"hours": (9, 13, 17), "minute": 0},
+        {"hours": (8, 12, 16, 20), "minute": 0},
     ]
 
     out: list[dict[str, Any]] = []
-    for p in pairs:
-        h1, m1, h2, m2 = p["h1"], p["m1"], p["h2"], p["m2"]
-        target = f"{m1} {h1},{h2} * * *"
 
-        out.append(
-            _ex(
-                "twice_daily",
-                user=f"At {h1}:{pad2(m1)} and {h2}:{pad2(m2)} every day",
+    for spec in daily_time_sets:
+        hours = tuple(sorted(spec["hours"]))
+        minute = int(spec["minute"])
+        target = _multi_time_target(hours, minute, "*", "*", "*")
+        count = len(hours)
+
+        _add_multi_time_prompts(
+            out,
+            template_specs=[
+                ("Every day at {times}", "24h", False, False),
+                ("Everyday at {times}", "compact", True, True),
+                ("Daily at {times}", "12h", False, False),
+                (f"{_count_phrase(count)} daily at {{times}}", "compact", False, False),
+                (f"{count} times a day at {{times}}", "12h", False, False),
+            ],
+            hours=hours,
+            minute=minute,
+            target=target,
+        )
+
+    weekday_time_sets = [
+        {"hours": (9, 17), "minute": 0},
+        {"hours": (8, 12, 16), "minute": 0},
+        {"hours": (6, 18), "minute": 30},
+    ]
+    for spec in weekday_time_sets:
+        hours = tuple(sorted(spec["hours"]))
+        minute = int(spec["minute"])
+        target = _multi_time_target(hours, minute, "*", "*", "1-5")
+
+        _add_multi_time_prompts(
+            out,
+            template_specs=[
+                ("Every weekday at {times}", "12h", False, False),
+                ("Weekdays at {times}", "compact", False, False),
+                ("Monday to Friday at {times}", "24h", False, False),
+            ],
+            hours=hours,
+            minute=minute,
+            target=target,
+        )
+
+    weekly_time_sets = [
+        {"hours": (9, 17), "minute": 0},
+        {"hours": (8, 12, 16), "minute": 0},
+        {"hours": (7, 13, 19), "minute": 0},
+    ]
+    for day in WEEKDAYS:
+        name = str(day["name"])
+        short = str(day["short"])
+        cron_val = str(day["cron"])
+        for spec in weekly_time_sets:
+            hours = tuple(sorted(spec["hours"]))
+            minute = int(spec["minute"])
+            target = _multi_time_target(hours, minute, "*", "*", cron_val)
+
+            _add_multi_time_prompts(
+                out,
+                template_specs=[
+                    (f"Every {name} at {{times}}", "12h", False, False),
+                    (f"On {name} at {{times}}", "24h", False, False),
+                    (f"{short} {{times}}", "compact", False, False),
+                ],
+                hours=hours,
+                minute=minute,
                 target=target,
             )
-        )
-        out.append(
-            _ex(
-                "twice_daily",
-                user=f"Twice a day at {h1}:{pad2(m1)} and {h2}:{pad2(m2)}",
+
+    multi_weekday_combos = [
+        {"days": [1, 3, 5], "label": "Monday, Wednesday, and Friday"},
+        {"days": [2, 4], "label": "Tuesday and Thursday"},
+        {"days": [1, 5], "label": "Monday and Friday"},
+        {"days": [3, 6], "label": "Wednesday and Saturday"},
+    ]
+    combo_time_sets = [
+        {"hours": (9, 17), "minute": 0},
+        {"hours": (8, 12, 16), "minute": 0},
+    ]
+    for combo in multi_weekday_combos:
+        cron_days = ",".join(str(day) for day in combo["days"])
+        label = str(combo["label"])
+        for spec in combo_time_sets:
+            hours = tuple(sorted(spec["hours"]))
+            minute = int(spec["minute"])
+            target = _multi_time_target(hours, minute, "*", "*", cron_days)
+
+            _add_multi_time_prompts(
+                out,
+                template_specs=[
+                    (f"Every {label} at {{times}}", "12h", False, False),
+                    (f"On {label} at {{times}}", "24h", False, False),
+                ],
+                hours=hours,
+                minute=minute,
                 target=target,
             )
-        )
-        out.append(
-            _ex(
-                "twice_daily",
-                user=f"Every day at {h1}:{pad2(m1)} and {h2}:{pad2(m2)}",
+
+    partial_ranges = [
+        {"label": "Monday through Thursday", "cron": "1-4"},
+        {"label": "Tuesday to Friday", "cron": "2-5"},
+        {"label": "Monday through Wednesday", "cron": "1-3"},
+        {"label": "Wednesday to Friday", "cron": "3-5"},
+    ]
+    partial_time_sets = [
+        {"hours": (9, 17), "minute": 0},
+        {"hours": (8, 12, 16), "minute": 0},
+    ]
+    for range_spec in partial_ranges:
+        label = str(range_spec["label"])
+        cron_days = str(range_spec["cron"])
+        for spec in partial_time_sets:
+            hours = tuple(sorted(spec["hours"]))
+            minute = int(spec["minute"])
+            target = _multi_time_target(hours, minute, "*", "*", cron_days)
+
+            _add_multi_time_prompts(
+                out,
+                template_specs=[
+                    (f"Every {label} at {{times}}", "12h", False, False),
+                    (f"{label} at {{times}}", "24h", False, False),
+                ],
+                hours=hours,
+                minute=minute,
                 target=target,
             )
+
+    weekend_time_sets = [
+        {"hours": (9, 17), "minute": 0},
+        {"hours": (10, 14, 18), "minute": 0},
+    ]
+    for spec in weekend_time_sets:
+        hours = tuple(sorted(spec["hours"]))
+        minute = int(spec["minute"])
+        target = _multi_time_target(hours, minute, "*", "*", "6,0")
+
+        _add_multi_time_prompts(
+            out,
+            template_specs=[
+                ("Every weekend at {times}", "12h", False, False),
+                ("On weekends at {times}", "compact", False, False),
+                ("Saturday and Sunday at {times}", "24h", False, False),
+            ],
+            hours=hours,
+            minute=minute,
+            target=target,
         )
+
+    except_weekday_specs = [
+        {"label": "Monday", "exclude": [2, 3, 4, 5]},
+        {"label": "Friday", "exclude": [1, 2, 3, 4]},
+        {"label": "Wednesday", "exclude": [1, 2, 4, 5]},
+    ]
+    except_time_sets = [
+        {"hours": (9, 17), "minute": 0},
+        {"hours": (8, 12, 16), "minute": 0},
+    ]
+    for except_spec in except_weekday_specs:
+        label = str(except_spec["label"])
+        cron_days = ",".join(str(day) for day in except_spec["exclude"])
+        for spec in except_time_sets:
+            hours = tuple(sorted(spec["hours"]))
+            minute = int(spec["minute"])
+            target = _multi_time_target(hours, minute, "*", "*", cron_days)
+
+            _add_multi_time_prompts(
+                out,
+                template_specs=[
+                    (f"Every weekday except {label} at {{times}}", "12h", False, False),
+                    (f"Weekdays except {label} at {{times}}", "24h", False, False),
+                ],
+                hours=hours,
+                minute=minute,
+                target=target,
+            )
+
+    daily_except_specs = [
+        {"label": "Sunday", "include": [1, 2, 3, 4, 5, 6]},
+        {"label": "Saturday", "include": [1, 2, 3, 4, 5, 0]},
+    ]
+    for daily_except in daily_except_specs:
+        label = str(daily_except["label"])
+        cron_days = ",".join(str(day) for day in daily_except["include"])
+        for spec in except_time_sets:
+            hours = tuple(sorted(spec["hours"]))
+            minute = int(spec["minute"])
+            target = _multi_time_target(hours, minute, "*", "*", cron_days)
+
+            _add_multi_time_prompts(
+                out,
+                template_specs=[
+                    (f"Every day except {label} at {{times}}", "12h", False, False),
+                    (f"Daily except {label} at {{times}}", "compact", False, False),
+                ],
+                hours=hours,
+                minute=minute,
+                target=target,
+            )
+
+    monthly_days = [1, 15, 28]
+    monthly_time_sets = [
+        {"hours": (8, 20), "minute": 0},
+        {"hours": (6, 12, 18), "minute": 0},
+    ]
+    for day in monthly_days:
+        for spec in monthly_time_sets:
+            hours = tuple(sorted(spec["hours"]))
+            minute = int(spec["minute"])
+            target = _multi_time_target(hours, minute, str(day), "*", "*")
+
+            _add_multi_time_prompts(
+                out,
+                template_specs=[
+                    (f"On the {ordinal(day)} day of every month at {{times}}", "12h", False, False),
+                    (f"Every month on day {day} at {{times}}", "24h", False, False),
+                    (f"Run monthly on the {ordinal(day)} at {{times}}", "compact", False, False),
+                ],
+                hours=hours,
+                minute=minute,
+                target=target,
+            )
+
+    months = [
+        {"name": "January", "num": 1},
+        {"name": "March", "num": 3},
+        {"name": "July", "num": 7},
+        {"name": "October", "num": 10},
+    ]
+    month_time_sets = [
+        {"hours": (8, 20), "minute": 0},
+        {"hours": (9, 13, 17), "minute": 0},
+    ]
+    for month_spec in months:
+        month_name = str(month_spec["name"])
+        month_num = str(month_spec["num"])
+        for spec in month_time_sets:
+            hours = tuple(sorted(spec["hours"]))
+            minute = int(spec["minute"])
+            target = _multi_time_target(hours, minute, "*", month_num, "*")
+
+            _add_multi_time_prompts(
+                out,
+                template_specs=[
+                    (f"Every {month_name} at {{times}}", "12h", False, False),
+                    (f"In {month_name} at {{times}}", "24h", False, False),
+                ],
+                hours=hours,
+                minute=minute,
+                target=target,
+            )
+
+    month_day_specs = [
+        {"month": "January", "month_num": 1, "day": 5},
+        {"month": "March", "month_num": 3, "day": 15},
+        {"month": "December", "month_num": 12, "day": 25},
+    ]
+    month_day_time_sets = [
+        {"hours": (9, 17), "minute": 0},
+        {"hours": (8, 12, 16), "minute": 0},
+    ]
+    for month_day in month_day_specs:
+        month_name = str(month_day["month"])
+        month_num = str(month_day["month_num"])
+        day = int(month_day["day"])
+        for spec in month_day_time_sets:
+            hours = tuple(sorted(spec["hours"]))
+            minute = int(spec["minute"])
+            target = _multi_time_target(hours, minute, str(day), month_num, "*")
+
+            _add_multi_time_prompts(
+                out,
+                template_specs=[
+                    (f"On {month_name} {ordinal(day)} at {{times}}", "12h", False, False),
+                    (f"{month_name} {ordinal(day)} at {{times}}", "24h", False, False),
+                ],
+                hours=hours,
+                minute=minute,
+                target=target,
+            )
 
     return out
 
@@ -875,7 +1201,7 @@ def build_base_dataset() -> list[dict[str, Any]]:
             *multi_weekday_at_examples(),
             *midnight_noon_at_examples(),
             *hourly_at_minute_examples(),
-            *twice_daily_examples(),
+            *multi_time_at_examples(),
             *weekend_at_examples(),
             *except_weekday_at_examples(),
             *every_n_hours_examples(),

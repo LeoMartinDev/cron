@@ -21,7 +21,7 @@ Family = Literal[
     "multi_weekday_at",
     "midnight_noon_at",
     "hourly_at_minute",
-    "twice_daily",
+    "multi_time_at",
     "weekend_at",
     "except_weekday_at",
     "every_n_hours",

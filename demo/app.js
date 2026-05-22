@@ -6,6 +6,10 @@ const CDN_WASM_PATHS = {
 };
 const PLACEHOLDER_OUTPUT = "Ready for a prediction.";
 const PENDING_OUTPUT = "Generating...";
+const DEFAULT_MODEL_CANDIDATES = [
+  "./models/model-00001-of-00001.gguf",
+  "../output/cron-model/final-gguf_gguf/SmolLM2-360M-Instruct.Q4_K_M.gguf",
+];
 
 const elements = {
   appTitle: document.querySelector("[data-app-title]"),
@@ -101,6 +105,80 @@ function resolveModelUrl(url) {
   } catch (error) {
     throw new Error(`Invalid model URL: ${url}`);
   }
+}
+
+function getCandidateModelUrls() {
+  const queryModelUrl = new URLSearchParams(window.location.search).get("model");
+  const configuredFallbacks = Array.isArray(config.fallbackModelUrls) ? config.fallbackModelUrls : [];
+  const candidates = [
+    queryModelUrl,
+    config.defaultModelUrl,
+    ...configuredFallbacks,
+    ...DEFAULT_MODEL_CANDIDATES,
+  ].filter((value) => typeof value === "string" && value.trim());
+
+  return [...new Set(candidates.map((value) => value.trim()))];
+}
+
+async function inspectModelUrl(url) {
+  const resolvedUrl = resolveModelUrl(url);
+
+  let response;
+  try {
+    response = await fetch(resolvedUrl, {
+      method: "HEAD",
+      cache: "no-store",
+    });
+  } catch (error) {
+    return {
+      ok: false,
+      reason:
+        error instanceof Error ? error.message : "The browser could not reach the local server.",
+      resolvedUrl,
+    };
+  }
+
+  if (!response.ok) {
+    return {
+      ok: false,
+      reason: `HTTP ${response.status}`,
+      resolvedUrl,
+    };
+  }
+
+  const contentType = (response.headers.get("content-type") ?? "").toLowerCase();
+  if (contentType.includes("text/html")) {
+    return {
+      ok: false,
+      reason: "Received HTML instead of a GGUF file",
+      resolvedUrl,
+    };
+  }
+
+  return {
+    ok: true,
+    resolvedUrl,
+  };
+}
+
+async function resolveAvailableModelUrl() {
+  const candidates = getCandidateModelUrls();
+  const failures = [];
+
+  for (const candidate of candidates) {
+    const result = await inspectModelUrl(candidate);
+    if (result.ok) {
+      return result.resolvedUrl;
+    }
+
+    failures.push(`${candidate} (${result.reason})`);
+  }
+
+  const detail = failures.join("; ");
+  throw new Error(
+    "No reachable GGUF model was found. Serve the repo root at /demo/ or place a model at demo/models/model-00001-of-00001.gguf."
+      + (detail ? ` Tried: ${detail}.` : ""),
+  );
 }
 
 function updateHeaderCopy() {
@@ -208,10 +286,16 @@ async function releaseModel(resetStatus = true) {
 async function loadModelFromUrl(url) {
   state.phase = "loading";
   syncControls();
-  setStatus("Loading GGUF model from the local server...", "warning");
+  setStatus("Looking for a reachable GGUF model...", "warning");
 
   try {
-    const resolvedUrl = resolveModelUrl(url);
+    const resolvedUrl = url ? resolveModelUrl(url) : await resolveAvailableModelUrl();
+    const probe = await inspectModelUrl(resolvedUrl);
+    if (!probe.ok) {
+      throw new Error(
+        `The configured model URL is not serving a GGUF file: ${probe.reason}. URL: ${resolvedUrl}`,
+      );
+    }
 
     if (state.modelLoaded) {
       await releaseModel(false);
@@ -328,7 +412,7 @@ function wireEvents() {
 function boot() {
   updateHeaderCopy();
   setOutput(PLACEHOLDER_OUTPUT, "placeholder");
-  setStatus("Loading the repo GGUF model...");
+  setStatus("Loading the local GGUF model...");
   wireEvents();
   syncControls();
 
@@ -336,15 +420,15 @@ function boot() {
     return;
   }
 
-  const url = config.defaultModelUrl;
-  if (!url) {
+  const urls = getCandidateModelUrls();
+  if (urls.length === 0) {
     state.phase = "error";
-    setStatus("No default GGUF URL is configured in demo/config.js.", "error");
+    setStatus("No GGUF URL is configured in demo/config.js.", "error");
     syncControls();
     return;
   }
 
-  loadModelFromUrl(url);
+  loadModelFromUrl();
 }
 
 boot();

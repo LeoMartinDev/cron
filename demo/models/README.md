@@ -8,5 +8,5 @@ Local shortcut from the repo root:
 
 ```bash
 mkdir -p demo/models
-ln -sf ../../output/cron-model/final-gguf_gguf/SmolLM2-360M-Instruct.Q4_K_M.gguf demo/models/model-00001-of-00001.gguf
+ln -sf ../../output/cron-model/final-gguf/SmolLM2-360M-Instruct.Q4_K_M.gguf demo/models/model-00001-of-00001.gguf
 ```

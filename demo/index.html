@@ -361,6 +361,38 @@
         color: var(--color-text-subtle);
       }
 
+      .status-line {
+        display: flex;
+        align-items: center;
+        gap: 0.55rem;
+        min-height: 1.15rem;
+        margin: 0;
+        font-size: 0.78rem;
+        line-height: 1.6;
+        color: var(--color-text-subtle);
+      }
+
+      .status-line__dot {
+        width: 0.48rem;
+        height: 0.48rem;
+        border-radius: 999px;
+        background: var(--color-text-subtle);
+        box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08);
+        flex: 0 0 auto;
+      }
+
+      .status-line__dot[data-tone="success"] {
+        background: var(--color-success);
+      }
+
+      .status-line__dot[data-tone="warning"] {
+        background: var(--color-warning);
+      }
+
+      .status-line__dot[data-tone="error"] {
+        background: var(--color-danger);
+      }
+
       @media (max-width: 640px) {
         .shell {
           padding-top: 3rem;
@@ -426,6 +458,10 @@
             <div class="prompt-actions">
               <button type="button" data-run class="button">Generate</button>
             </div>
+            <p class="status-line" aria-live="polite">
+              <span class="status-line__dot" data-status-dot data-tone="neutral"></span>
+              <span data-status-text>Checking model availability...</span>
+            </p>
             <p class="input-hint">Press Enter or click Generate.</p>
           </div>
         </section>

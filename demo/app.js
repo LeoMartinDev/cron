@@ -7,8 +7,8 @@ const CDN_WASM_PATHS = {
 const PLACEHOLDER_OUTPUT = "Ready for a prediction.";
 const PENDING_OUTPUT = "Generating...";
 const DEFAULT_MODEL_CANDIDATES = [
+  "../output/cron-model/final-gguf/SmolLM2-360M-Instruct.Q4_K_M.gguf",
   "./models/model-00001-of-00001.gguf",
-  "../output/cron-model/final-gguf_gguf/SmolLM2-360M-Instruct.Q4_K_M.gguf",
 ];
 
 const elements = {
@@ -47,6 +47,15 @@ function setStatus(message, tone = "neutral") {
   if (elements.statusDot) {
     elements.statusDot.dataset.tone = tone;
   }
+}
+
+function formatLoadFailure(error) {
+  if (!(error instanceof Error)) {
+    return "No GGUF model was found.";
+  }
+
+  const [headline] = error.message.split(" Tried:");
+  return headline.trim();
 }
 
 function normalizeModelOutput(raw) {
@@ -176,7 +185,7 @@ async function resolveAvailableModelUrl() {
 
   const detail = failures.join("; ");
   throw new Error(
-    "No reachable GGUF model was found. Serve the repo root at /demo/ or place a model at demo/models/model-00001-of-00001.gguf."
+    "No reachable GGUF model was found. Serve the repo root at /demo/ so the demo can read ../output/cron-model/final-gguf/, or place a model at demo/models/model-00001-of-00001.gguf."
       + (detail ? ` Tried: ${detail}.` : ""),
   );
 }
@@ -318,7 +327,9 @@ async function loadModelFromUrl(url) {
   } catch (error) {
     state.modelLoaded = false;
     state.phase = "error";
-    setStatus(error instanceof Error ? error.message : "Failed to load the model.", "error");
+    const message = error instanceof Error ? error.message : "Failed to load the model.";
+    setStatus(message, "error");
+    setOutput(formatLoadFailure(error), "error");
   }
 
   syncControls();

@@ -2,12 +2,13 @@ import { Wllama } from "https://cdn.jsdelivr.net/npm/@wllama/wllama@3.1.1/esm/in
 
 const config = window.CRON_DEMO_CONFIG ?? {};
 const CDN_WASM_PATHS = {
-  default: "https://cdn.jsdelivr.net/npm/@wllama/wllama@3.1.1/esm/wasm/wllama.wasm",
+  default:
+    "https://cdn.jsdelivr.net/npm/@wllama/wllama@3.1.1/esm/wasm/wllama.wasm",
 };
 const PLACEHOLDER_OUTPUT = "Ready for a prediction.";
 const PENDING_OUTPUT = "Generating...";
 const DEFAULT_MODEL_CANDIDATES = [
-  "../output/cron-model/final-gguf/SmolLM2-360M-Instruct.Q4_K_M.gguf",
+  "./output/cron-model/final-gguf/SmolLM2-360M-Instruct.Q4_K_M.gguf",
   "./models/model-00001-of-00001.gguf",
 ];
 
@@ -117,8 +118,12 @@ function resolveModelUrl(url) {
 }
 
 function getCandidateModelUrls() {
-  const queryModelUrl = new URLSearchParams(window.location.search).get("model");
-  const configuredFallbacks = Array.isArray(config.fallbackModelUrls) ? config.fallbackModelUrls : [];
+  const queryModelUrl = new URLSearchParams(window.location.search).get(
+    "model",
+  );
+  const configuredFallbacks = Array.isArray(config.fallbackModelUrls)
+    ? config.fallbackModelUrls
+    : [];
   const candidates = [
     queryModelUrl,
     config.defaultModelUrl,
@@ -141,8 +146,9 @@ async function inspectModelUrl(url) {
   } catch (error) {
     return {
       ok: false,
-      reason:
-        error instanceof Error ? error.message : "The browser could not reach the local server.",
+      reason: error instanceof Error
+        ? error.message
+        : "The browser could not reach the local server.",
       resolvedUrl,
     };
   }
@@ -155,7 +161,8 @@ async function inspectModelUrl(url) {
     };
   }
 
-  const contentType = (response.headers.get("content-type") ?? "").toLowerCase();
+  const contentType = (response.headers.get("content-type") ?? "")
+    .toLowerCase();
   if (contentType.includes("text/html")) {
     return {
       ok: false,
@@ -185,19 +192,19 @@ async function resolveAvailableModelUrl() {
 
   const detail = failures.join("; ");
   throw new Error(
-    "No reachable GGUF model was found. Serve the repo root at /demo/ so the demo can read ../output/cron-model/final-gguf/, or place a model at demo/models/model-00001-of-00001.gguf."
-      + (detail ? ` Tried: ${detail}.` : ""),
+    "No reachable GGUF model was found. Serve the repo root at /demo/ so the demo can read ../output/cron-model/final-gguf/, or place a model at demo/models/model-00001-of-00001.gguf." +
+      (detail ? ` Tried: ${detail}.` : ""),
   );
 }
 
 function updateHeaderCopy() {
   elements.appTitle.textContent = config.title ?? "Cron Console";
-  elements.appSubtitle.textContent =
-    config.subtitle ??
+  elements.appSubtitle.textContent = config.subtitle ??
     "(English) to Cron.";
-  elements.promptInput.placeholder = config.placeholder ?? "Every weekday at 9:00";
-  elements.breadcrumbPath.textContent =
-    config.breadcrumb ?? "/home/dev/cron-finetuning/demo";
+  elements.promptInput.placeholder = config.placeholder ??
+    "Every weekday at 9:00";
+  elements.breadcrumbPath.textContent = config.breadcrumb ??
+    "/home/dev/cron-finetuning/demo";
 }
 
 function syncControls() {
@@ -244,8 +251,14 @@ function setOutput(value, outputState = "result") {
   state.lastOutput = value;
   state.outputState = outputState;
   elements.normalizedOutput.textContent = value;
-  elements.normalizedOutput.classList.toggle("is-placeholder", outputState === "placeholder");
-  elements.normalizedOutput.classList.toggle("is-error", outputState === "error");
+  elements.normalizedOutput.classList.toggle(
+    "is-placeholder",
+    outputState === "placeholder",
+  );
+  elements.normalizedOutput.classList.toggle(
+    "is-error",
+    outputState === "error",
+  );
   elements.normalizedOutput.classList.toggle(
     "is-invalid",
     outputState === "result" && value === "INVALID",
@@ -258,7 +271,10 @@ function ensureBrowserSupport() {
   const supported = typeof WebAssembly === "object";
   if (!supported) {
     state.phase = "error";
-    setStatus("This browser is missing WebAssembly features required by wllama.", "error");
+    setStatus(
+      "This browser is missing WebAssembly features required by wllama.",
+      "error",
+    );
     syncControls();
   }
 
@@ -298,7 +314,9 @@ async function loadModelFromUrl(url) {
   setStatus("Looking for a reachable GGUF model...", "warning");
 
   try {
-    const resolvedUrl = url ? resolveModelUrl(url) : await resolveAvailableModelUrl();
+    const resolvedUrl = url
+      ? resolveModelUrl(url)
+      : await resolveAvailableModelUrl();
     const probe = await inspectModelUrl(resolvedUrl);
     if (!probe.ok) {
       throw new Error(
@@ -316,7 +334,10 @@ async function loadModelFromUrl(url) {
       progressCallback: ({ loaded, total }) => {
         if (total) {
           const percent = Math.round((loaded / total) * 100);
-          setStatus(`Loading GGUF model from the local server... ${percent}%`, "warning");
+          setStatus(
+            `Loading GGUF model from the local server... ${percent}%`,
+            "warning",
+          );
         }
       },
     });
@@ -327,7 +348,9 @@ async function loadModelFromUrl(url) {
   } catch (error) {
     state.modelLoaded = false;
     state.phase = "error";
-    const message = error instanceof Error ? error.message : "Failed to load the model.";
+    const message = error instanceof Error
+      ? error.message
+      : "Failed to load the model.";
     setStatus(message, "error");
     setOutput(formatLoadFailure(error), "error");
   }
@@ -358,8 +381,7 @@ async function runInference() {
       messages: [
         {
           role: "system",
-          content:
-            config.systemPrompt ??
+          content: config.systemPrompt ??
             "You must reply with either a 5-field Unix cron expression or the single token INVALID. No explanation.",
         },
         {
@@ -381,12 +403,17 @@ async function runInference() {
     const normalized = normalizeModelOutput(raw);
     setOutput(normalized, "result");
     setStatus(
-      normalized === "INVALID" ? "Request classified as INVALID." : "Cron expression generated.",
+      normalized === "INVALID"
+        ? "Request classified as INVALID."
+        : "Cron expression generated.",
       "success",
     );
   } catch (error) {
     setOutput("Generation failed.", "error");
-    setStatus(error instanceof Error ? error.message : "Inference failed.", "error");
+    setStatus(
+      error instanceof Error ? error.message : "Inference failed.",
+      "error",
+    );
   } finally {
     state.phase = state.modelLoaded ? "ready" : "error";
     syncControls();

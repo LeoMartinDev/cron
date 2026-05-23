@@ -73,6 +73,7 @@ cron-train = "scripts.train:main"
 cron-inference = "scripts.inference:main"
 cron-evaluate = "scripts.evaluate:main"
 cron-push = "scripts.push:main"
+cron-demo = "scripts.demo:main"
 
 [project.urls]
 Homepage = "https://github.com/user/cron-finetuning"
